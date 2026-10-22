@@ -1,0 +1,34 @@
+:host {
+  display: block;
+  min-height: 100%;
+}
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 48px 16px;
+  text-align: center;
+}
+
+.notice__icon {
+  width: 56px;
+  height: 56px;
+  font-size: 56px;
+  color: var(--mat-sys-primary);
+}
+
+.notice__title {
+  margin: 8px 0 0;
+  font: var(--mat-sys-headline-medium);
+}
+
+.notice__text {
+  max-width: 32rem;
+  margin: 0 0 16px;
+  color: var(--mat-sys-on-surface-variant);
+}

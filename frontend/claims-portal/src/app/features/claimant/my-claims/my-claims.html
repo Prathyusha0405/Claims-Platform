@@ -1,0 +1,30 @@
+<div class="page">
+  <header class="page__header">
+    <div>
+      <h1 class="page__title">My claims</h1>
+      <p class="page__subtitle">Every claim you have submitted, and where it stands.</p>
+    </div>
+    <a mat-flat-button routerLink="/claimant/claims/new">
+      <mat-icon aria-hidden="true">add</mat-icon>
+      New claim
+    </a>
+  </header>
+
+  <section class="panel" aria-label="Search your claims">
+    <app-claim-filters (criteriaChange)="search($event)" />
+  </section>
+
+  @if (claims.error(); as error) {
+    <app-load-error [error]="error" subject="your claims" (retry)="reload()" />
+  } @else {
+    <app-claims-table
+      label="My claims"
+      linkBase="/claimant/claims"
+      [page]="claims.value()"
+      [request]="request()"
+      [loading]="claims.loading()"
+      [emptyMessage]="emptyMessage()"
+      (requestChange)="request.set($event)"
+    />
+  }
+</div>

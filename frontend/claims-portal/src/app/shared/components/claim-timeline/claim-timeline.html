@@ -1,0 +1,30 @@
+@if (history().length === 0) {
+  <p class="muted">Nothing has happened to this claim yet.</p>
+} @else {
+  <ol class="timeline">
+    @for (entry of history(); track $index) {
+      <li class="timeline__item">
+        <span class="timeline__icon" aria-hidden="true">
+          <mat-icon>{{ icons[entry.eventType] }}</mat-icon>
+        </span>
+        <div class="timeline__body">
+          <p class="timeline__title">
+            <span class="timeline__label">{{ labels[entry.eventType] }}</span>
+            @if (entry.toStatus) {
+              <app-status-chip [status]="entry.toStatus" />
+            }
+          </p>
+          @if (entry.details) {
+            <p class="timeline__details">{{ entry.details }}</p>
+          }
+          <p class="timeline__meta">
+            <time [attr.datetime]="entry.createdAt">{{ entry.createdAt | date: 'medium' }}</time>
+            @if (actor(entry); as who) {
+              <span aria-hidden="true">·</span> {{ who }}
+            }
+          </p>
+        </div>
+      </li>
+    }
+  </ol>
+}

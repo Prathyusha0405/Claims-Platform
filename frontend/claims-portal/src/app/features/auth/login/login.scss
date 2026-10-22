@@ -1,0 +1,29 @@
+:host {
+  display: block;
+  width: 100%;
+  max-width: 440px;
+}
+
+.demo {
+  margin-top: 32px;
+  padding: 16px;
+  border: 1px dashed var(--mat-sys-outline);
+  border-radius: var(--mat-sys-corner-medium);
+}
+
+.demo__title {
+  margin: 0;
+  font: var(--mat-sys-title-small);
+}
+
+.demo__text {
+  margin: 4px 0 12px;
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.demo__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

@@ -1,0 +1,39 @@
+.user-menu__name {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// On a phone only the avatar icon is shown; the name is in the menu.
+@media (max-width: 599.98px) {
+  .user-menu__name {
+    display: none;
+  }
+}
+
+.user-menu__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 16px 12px;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  margin-bottom: 4px;
+  max-width: 20rem;
+}
+
+.user-menu__summary-name {
+  font: var(--mat-sys-title-small);
+  overflow-wrap: anywhere;
+}
+
+.user-menu__summary-email {
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-on-surface-variant);
+  overflow-wrap: anywhere;
+}
+
+.user-menu__summary-role {
+  font: var(--mat-sys-label-medium);
+  color: var(--mat-sys-primary);
+}

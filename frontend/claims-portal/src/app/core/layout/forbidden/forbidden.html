@@ -1,0 +1,12 @@
+<section class="notice" aria-labelledby="forbidden-title">
+  <mat-icon class="notice__icon" aria-hidden="true">lock</mat-icon>
+  <h1 id="forbidden-title" class="notice__title">Access denied</h1>
+  <p class="notice__text">
+    @if (roleLabel(); as label) {
+      Your account is signed in as <strong>{{ label }}</strong>, which cannot open that page.
+    } @else {
+      You cannot open that page.
+    }
+  </p>
+  <a mat-flat-button [routerLink]="home()">Back to my home page</a>
+</section>

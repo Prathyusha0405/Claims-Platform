@@ -1,0 +1,14 @@
+.prompt__description {
+  margin: 0 0 16px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.prompt__field {
+  width: 100%;
+}
+
+// A decision that cannot be taken back is drawn in the error colour rather than the primary one.
+.prompt__danger {
+  --mat-button-filled-container-color: var(--mat-sys-error);
+  --mat-button-filled-label-text-color: var(--mat-sys-on-error);
+}

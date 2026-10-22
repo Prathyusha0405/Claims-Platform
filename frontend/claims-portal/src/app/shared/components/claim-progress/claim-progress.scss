@@ -1,0 +1,69 @@
+:host {
+  display: block;
+}
+
+.progress {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.progress__step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.progress__marker {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--mat-sys-outline);
+  font: var(--mat-sys-label-large);
+}
+
+.progress__check {
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+}
+
+.progress__label {
+  font: var(--mat-sys-label-large);
+}
+
+.progress__hint {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font: var(--mat-sys-label-small);
+  background: var(--app-warning-container);
+  color: var(--app-on-warning-container);
+}
+
+.progress__step[data-state='done'] {
+  color: var(--mat-sys-on-surface);
+
+  .progress__marker {
+    border-color: var(--app-success);
+    background: var(--app-success);
+    color: #fff;
+  }
+}
+
+.progress__step[data-state='current'] {
+  color: var(--mat-sys-on-surface);
+
+  .progress__marker {
+    border-color: var(--mat-sys-primary);
+    background: var(--mat-sys-primary);
+    color: var(--mat-sys-on-primary);
+  }
+}

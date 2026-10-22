@@ -1,0 +1,26 @@
+<ol class="progress" aria-label="Claim progress">
+  @for (step of steps(); track step.label) {
+    <li
+      class="progress__step"
+      [attr.data-state]="step.state"
+      [attr.aria-current]="step.state === 'current' ? 'step' : null"
+    >
+      <span class="progress__marker" aria-hidden="true">
+        @if (step.state === 'done') {
+          <mat-icon class="progress__check">check</mat-icon>
+        } @else {
+          {{ $index + 1 }}
+        }
+      </span>
+      <span class="progress__label">
+        {{ step.label }}
+        @if (step.state === 'done') {
+          <span class="visually-hidden">(completed)</span>
+        }
+      </span>
+      @if (step.hint) {
+        <span class="progress__hint">{{ step.hint }}</span>
+      }
+    </li>
+  }
+</ol>

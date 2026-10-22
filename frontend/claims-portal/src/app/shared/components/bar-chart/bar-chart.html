@@ -1,0 +1,86 @@
+<figure class="chart" #chart>
+  <div class="chart__rows" role="group" [attr.aria-label]="caption()">
+    @for (datum of data(); track datum.label) {
+      <div
+        class="bar"
+        role="img"
+        tabindex="0"
+        [attr.aria-label]="description(datum)"
+        (pointermove)="showAt(datum, $event, chart)"
+        (pointerleave)="hide()"
+        (focus)="showFor(datum, $event)"
+        (blur)="hide()"
+      >
+        <span class="bar__label">{{ datum.label }}</span>
+        <span class="bar__plot">
+          <span
+            class="bar__fill"
+            [class.bar__fill--muted]="datum.muted"
+            [style.width]="'calc((100% - var(--value-room)) * ' + ratio(datum) + ')'"
+          ></span>
+          <span class="bar__value">{{ datum.valueText }}</span>
+          @if (datum.muted) {
+            <span class="bar__note">not counted</span>
+          }
+        </span>
+      </div>
+    }
+  </div>
+
+  @if (tooltip(); as tip) {
+    <div class="tip" role="presentation" [style.left.px]="tip.x" [style.top.px]="tip.y">
+      <span class="tip__value">{{ tip.datum.valueText }}</span>
+      <span class="tip__label">
+        <span class="tip__key" [class.tip__key--muted]="tip.datum.muted" aria-hidden="true"></span>
+        {{ tip.datum.label }}
+      </span>
+      @if (tip.datum.detail) {
+        <span class="tip__detail">{{ tip.datum.detail }}</span>
+      }
+    </div>
+  }
+
+  @if (hasMuted()) {
+    <p class="legend" aria-hidden="true">
+      <span class="legend__item"><span class="legend__swatch"></span>Counted</span>
+      <span class="legend__item"><span class="legend__swatch legend__swatch--muted"></span>Not counted</span>
+    </p>
+  }
+
+  <button
+    mat-button
+    type="button"
+    class="chart__toggle"
+    [attr.aria-expanded]="tableOpen()"
+    (click)="tableOpen.set(!tableOpen())"
+  >
+    <mat-icon aria-hidden="true">{{ tableOpen() ? 'expand_less' : 'table_chart' }}</mat-icon>
+    {{ tableOpen() ? 'Hide table' : 'View as table' }}
+  </button>
+
+  @if (tableOpen()) {
+    <table class="chart__table">
+      <caption class="visually-hidden">{{ caption() }}</caption>
+      <thead>
+        <tr>
+          <th scope="col">{{ labelHeading() }}</th>
+          <th scope="col" class="numeric">{{ valueHeading() }}</th>
+          @if (detailHeading(); as heading) {
+            <th scope="col" class="numeric">{{ heading }}</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (datum of data(); track datum.label) {
+          <tr>
+            <th scope="row">{{ datum.label }}</th>
+            <td class="numeric">{{ datum.valueText }}</td>
+            @if (detailHeading()) {
+              <td class="numeric">{{ datum.detail }}</td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</figure>

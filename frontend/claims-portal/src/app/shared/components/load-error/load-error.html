@@ -1,0 +1,9 @@
+<section class="load-error" role="alert">
+  <mat-icon class="load-error__icon" aria-hidden="true">error_outline</mat-icon>
+  <h2 class="load-error__title">We could not load {{ subject() }}</h2>
+  <p class="load-error__text">{{ error().message }}</p>
+  <button mat-stroked-button type="button" (click)="retry.emit()">
+    <mat-icon aria-hidden="true">refresh</mat-icon>
+    Try again
+  </button>
+</section>

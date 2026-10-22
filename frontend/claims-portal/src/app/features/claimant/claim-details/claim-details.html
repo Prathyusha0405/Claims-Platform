@@ -1,0 +1,79 @@
+<div class="page">
+  <a class="back" routerLink="/claimant/my-claims">
+    <mat-icon aria-hidden="true">arrow_back</mat-icon>
+    My claims
+  </a>
+
+  @if (claim.error(); as error) {
+    @if (error.isNotFound) {
+      <section class="missing" role="alert">
+        <mat-icon aria-hidden="true">search_off</mat-icon>
+        <h1 class="page__title">Claim not found</h1>
+        <p class="muted">
+          There is no claim <strong>{{ claimNumber() }}</strong> on your account. Check the number and try again.
+        </p>
+        <a mat-flat-button routerLink="/claimant/my-claims">Back to my claims</a>
+      </section>
+    } @else {
+      <app-load-error [error]="error" subject="this claim" (retry)="reload()" />
+    }
+  } @else if (claim.value(); as detail) {
+    <header class="page__header">
+      <div>
+        <h1 class="page__title">{{ detail.claimNumber }}</h1>
+        <p class="page__subtitle">Track your claim from submission to settlement.</p>
+      </div>
+      <app-status-chip [status]="detail.status" />
+    </header>
+
+    @if (claim.loading()) {
+      <mat-progress-bar mode="indeterminate" aria-label="Refreshing claim" />
+    }
+
+    <section class="panel" aria-label="Claim progress">
+      <app-claim-progress [status]="detail.status" />
+    </section>
+
+    @if (detail.status === 'MORE_INFO_REQUIRED') {
+      <section class="panel panel--attention" aria-labelledby="reply-title">
+        <h2 id="reply-title" class="panel__title">
+          <mat-icon aria-hidden="true">help_outline</mat-icon>
+          We need more information from you
+        </h2>
+        @if (question(); as ask) {
+          <blockquote class="question">{{ ask.details }}</blockquote>
+        }
+
+        @if (replyFailure(); as message) {
+          <p class="form-alert" role="alert">{{ message }}</p>
+        }
+        <!-- `(submit)`, not `(ngSubmit)`: the form has no NgForm/FormGroupDirective, so ngSubmit would never fire. -->
+        <form (submit)="$event.preventDefault(); sendReply(detail.id)">
+          <mat-form-field>
+            <mat-label>Your reply</mat-label>
+            <textarea matInput rows="5" [formControl]="reply"></textarea>
+            <mat-hint align="end">{{ reply.value.length }} / 2000</mat-hint>
+            <mat-error>{{ replyError() }}</mat-error>
+          </mat-form-field>
+          <div class="form-actions">
+            <button mat-flat-button type="submit" [disabled]="replying()">
+              {{ replying() ? 'Sending…' : 'Send reply' }}
+            </button>
+          </div>
+        </form>
+      </section>
+    }
+
+    <section class="panel" aria-labelledby="details-title">
+      <h2 id="details-title" class="panel__title">Claim details</h2>
+      <app-claim-overview [claim]="detail" />
+    </section>
+
+    <section class="panel" aria-labelledby="history-title">
+      <h2 id="history-title" class="panel__title">History</h2>
+      <app-claim-timeline [history]="detail.history" />
+    </section>
+  } @else {
+    <mat-progress-bar mode="indeterminate" aria-label="Loading claim" />
+  }
+</div>

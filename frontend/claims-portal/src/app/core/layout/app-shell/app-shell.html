@@ -1,0 +1,56 @@
+<a class="skip-link" href="#main-content" (click)="skipToContent($event)">Skip to main content</a>
+
+<div class="shell">
+  <mat-toolbar class="shell__toolbar">
+    @if (compact()) {
+      <button
+        mat-icon-button
+        type="button"
+        aria-label="Toggle navigation menu"
+        [attr.aria-expanded]="drawer.opened"
+        (click)="drawer.toggle()"
+      >
+        <mat-icon aria-hidden="true">menu</mat-icon>
+      </button>
+    }
+    <a class="shell__brand" [routerLink]="home()">
+      <mat-icon aria-hidden="true">verified_user</mat-icon>
+      <span>Chubb Claims</span>
+    </a>
+    <span class="shell__spacer"></span>
+    <app-notification-bell />
+    <app-user-menu />
+  </mat-toolbar>
+
+  <mat-sidenav-container class="shell__body">
+    <mat-sidenav
+      #drawer
+      class="shell__nav"
+      [mode]="compact() ? 'over' : 'side'"
+      [opened]="!compact()"
+    >
+      <mat-nav-list aria-label="Main navigation">
+        @for (item of navItems(); track item.route) {
+          <a
+            mat-list-item
+            [routerLink]="item.route"
+            routerLinkActive
+            #active="routerLinkActive"
+            [activated]="active.isActive"
+            [attr.aria-current]="active.isActive ? 'page' : null"
+            (click)="compact() && drawer.close()"
+          >
+            <mat-icon matListItemIcon aria-hidden="true">{{ item.icon }}</mat-icon>
+            <span matListItemTitle>{{ item.label }}</span>
+          </a>
+        }
+      </mat-nav-list>
+    </mat-sidenav>
+
+    <mat-sidenav-content>
+      <main #main id="main-content" class="shell__main" tabindex="-1">
+        <router-outlet />
+      </main>
+    </mat-sidenav-content>
+  </mat-sidenav-container>
+</div>

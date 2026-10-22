@@ -1,0 +1,16 @@
+@if (queue.error(); as error) {
+  <app-load-error [error]="error" subject="the work queue" (retry)="reload()" />
+} @else {
+  <app-claims-table
+    label="Unassigned claims"
+    linkBase="/officer/claims"
+    actionLabel="Take claim"
+    emptyMessage="The queue is empty. Every submitted claim has an officer."
+    [page]="queue.value()"
+    [request]="request()"
+    [loading]="queue.loading()"
+    [busyId]="busyId()"
+    (requestChange)="request.set($event)"
+    (action)="take($event)"
+  />
+}

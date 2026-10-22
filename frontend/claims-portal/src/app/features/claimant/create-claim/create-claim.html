@@ -1,0 +1,69 @@
+<div class="page page--narrow">
+  <header class="page__header">
+    <div>
+      <h1 class="page__title">New claim</h1>
+      <p class="page__subtitle">Tell us what happened. An officer will review your claim and keep you updated here.</p>
+    </div>
+  </header>
+
+  <form class="panel" [formGroup]="form" (ngSubmit)="submit()">
+    @if (failure(); as message) {
+      <p class="form-alert" role="alert">{{ message }}</p>
+    }
+
+    <div class="form-grid">
+      <mat-form-field>
+        <mat-label>Policy number</mat-label>
+        <input matInput formControlName="policyNumber" placeholder="POL-2026-12345" autocomplete="off" />
+        <mat-error>{{ error(form.controls.policyNumber) }}</mat-error>
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Type of claim</mat-label>
+        <mat-select formControlName="claimType">
+          @for (type of claimTypes; track type) {
+            <mat-option [value]="type">{{ claimTypeLabels[type] }}</mat-option>
+          }
+        </mat-select>
+        <mat-error>{{ error(form.controls.claimType) }}</mat-error>
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Date of incident</mat-label>
+        <input matInput formControlName="incidentDate" [matDatepicker]="picker" [max]="today" />
+        <mat-datepicker-toggle matIconSuffix [for]="picker" />
+        <mat-datepicker #picker />
+        <mat-hint>Cannot be in the future</mat-hint>
+        <mat-error>{{ error(form.controls.incidentDate) }}</mat-error>
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Amount claimed</mat-label>
+        <span matTextPrefix>{{ currency }}&nbsp;</span>
+        <input matInput type="number" inputmode="decimal" step="0.01" min="0.01" formControlName="claimAmount" />
+        <mat-error>{{ error(form.controls.claimAmount) }}</mat-error>
+      </mat-form-field>
+
+      <mat-form-field class="form-grid__wide">
+        <mat-label>Where did it happen? (optional)</mat-label>
+        <input matInput formControlName="incidentLocation" autocomplete="off" />
+        <mat-hint align="end">{{ form.controls.incidentLocation.value.length }} / 200</mat-hint>
+        <mat-error>{{ error(form.controls.incidentLocation) }}</mat-error>
+      </mat-form-field>
+
+      <mat-form-field class="form-grid__wide">
+        <mat-label>What happened?</mat-label>
+        <textarea matInput rows="6" formControlName="description"></textarea>
+        <mat-hint align="end">{{ form.controls.description.value.length }} / 2000</mat-hint>
+        <mat-error>{{ error(form.controls.description) }}</mat-error>
+      </mat-form-field>
+    </div>
+
+    <div class="form-actions">
+      <a mat-button routerLink="/claimant/my-claims">Cancel</a>
+      <button mat-flat-button type="submit" [disabled]="submitting()">
+        {{ submitting() ? 'Submitting…' : 'Submit claim' }}
+      </button>
+    </div>
+  </form>
+</div>

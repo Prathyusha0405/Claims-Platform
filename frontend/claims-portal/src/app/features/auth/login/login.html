@@ -1,0 +1,58 @@
+<section class="auth-card" aria-labelledby="login-title">
+  <h1 id="login-title" class="auth-card__title">Sign in</h1>
+  <p class="auth-card__lead">Welcome back. Sign in to file, track or review claims.</p>
+
+  @if (failure(); as message) {
+    <p class="form-alert" role="alert">{{ message }}</p>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="submit()">
+    <mat-form-field>
+      <mat-label>Email</mat-label>
+      <input matInput type="email" formControlName="email" autocomplete="username" />
+      <mat-error>{{ error(form.controls.email) }}</mat-error>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Password</mat-label>
+      <input
+        matInput
+        formControlName="password"
+        autocomplete="current-password"
+        [type]="passwordVisible() ? 'text' : 'password'"
+      />
+      <button
+        mat-icon-button
+        matSuffix
+        type="button"
+        [attr.aria-label]="passwordVisible() ? 'Hide password' : 'Show password'"
+        [attr.aria-pressed]="passwordVisible()"
+        (click)="passwordVisible.set(!passwordVisible())"
+      >
+        <mat-icon aria-hidden="true">{{ passwordVisible() ? 'visibility_off' : 'visibility' }}</mat-icon>
+      </button>
+      <mat-error>{{ error(form.controls.password) }}</mat-error>
+    </mat-form-field>
+
+    <button mat-flat-button type="submit" class="auth-card__submit" [disabled]="submitting()">
+      {{ submitting() ? 'Signing in…' : 'Sign in' }}
+    </button>
+  </form>
+
+  <p class="auth-card__switch">
+    New to Chubb Claims?
+    <a [routerLink]="['/auth/register']" [queryParams]="returnUrl() ? { returnUrl: returnUrl() } : null">Create an account</a>
+  </p>
+
+  @if (demoAccounts.length > 0) {
+    <section class="demo" aria-labelledby="demo-title">
+      <h2 id="demo-title" class="demo__title">Demo accounts</h2>
+      <p class="demo__text">Development build only: fills in the form for one of the seeded accounts.</p>
+      <div class="demo__buttons">
+        @for (account of demoAccounts; track account.email) {
+          <button mat-stroked-button type="button" (click)="useDemo(account)">{{ account.label }}</button>
+        }
+      </div>
+    </section>
+  }
+</section>

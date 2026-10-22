@@ -1,0 +1,65 @@
+:host {
+  display: block;
+  min-height: 100%;
+}
+
+.public {
+  display: grid;
+  min-height: 100vh;
+  grid-template-rows: auto 1fr;
+}
+
+.public__brand {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.public__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font: var(--mat-sys-title-large);
+}
+
+.public__tagline {
+  margin: 0;
+  font: var(--mat-sys-body-large);
+}
+
+.public__content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+// Side by side once there is room: the brand panel on the left, the page centred on the right.
+@media (min-width: 900px) {
+  .public {
+    grid-template-columns: minmax(320px, 2fr) 3fr;
+    grid-template-rows: none;
+  }
+
+  .public__brand {
+    padding: 48px;
+  }
+
+  .public__name {
+    font: var(--mat-sys-headline-medium);
+  }
+
+  .public__tagline {
+    max-width: 24rem;
+    font: var(--mat-sys-title-large);
+  }
+
+  .public__content {
+    padding: 48px;
+  }
+}

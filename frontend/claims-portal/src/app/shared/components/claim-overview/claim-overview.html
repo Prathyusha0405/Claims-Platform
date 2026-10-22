@@ -1,0 +1,46 @@
+<dl class="facts">
+  <div class="fact">
+    <dt>Policy number</dt>
+    <dd>{{ claim().policyNumber }}</dd>
+  </div>
+  <div class="fact">
+    <dt>Claim type</dt>
+    <dd>{{ typeLabels[claim().claimType] }}</dd>
+  </div>
+  <div class="fact">
+    <dt>Amount claimed</dt>
+    <dd>{{ claim().claimAmount | currency: currency : 'symbol' : '1.2-2' }}</dd>
+  </div>
+  <div class="fact">
+    <dt>Incident date</dt>
+    <dd>{{ claim().incidentDate | date: 'mediumDate' }}</dd>
+  </div>
+  <div class="fact">
+    <dt>Incident location</dt>
+    <dd>{{ claim().incidentLocation || 'Not given' }}</dd>
+  </div>
+  <div class="fact">
+    <dt>Submitted</dt>
+    <dd>{{ claim().createdAt | date: 'medium' }}</dd>
+  </div>
+  <div class="fact">
+    <dt>Last updated</dt>
+    <dd>{{ claim().updatedAt | date: 'medium' }}</dd>
+  </div>
+  @if (staff()) {
+    <div class="fact">
+      <dt>Claimant</dt>
+      <dd>
+        {{ claim().claimantName }}
+        <span class="fact__secondary">{{ claim().claimantEmail }}</span>
+      </dd>
+    </div>
+    <div class="fact">
+      <dt>Assigned officer</dt>
+      <dd>{{ claim().assignedOfficerId === null ? 'Nobody yet' : 'Officer #' + claim().assignedOfficerId }}</dd>
+    </div>
+  }
+</dl>
+
+<h3 class="facts__heading">Description</h3>
+<p class="facts__description">{{ claim().description }}</p>

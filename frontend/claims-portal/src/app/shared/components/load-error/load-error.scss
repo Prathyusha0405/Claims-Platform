@@ -1,0 +1,30 @@
+:host {
+  display: block;
+}
+
+.load-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.load-error__icon {
+  width: 48px;
+  height: 48px;
+  font-size: 48px;
+  color: var(--mat-sys-error);
+}
+
+.load-error__title {
+  margin: 0;
+  font: var(--mat-sys-title-large);
+}
+
+.load-error__text {
+  max-width: 32rem;
+  margin: 0 0 8px;
+  color: var(--mat-sys-on-surface-variant);
+}

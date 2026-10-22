@@ -1,0 +1,34 @@
+:host {
+  display: block;
+}
+
+.claims {
+  overflow: hidden;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  background: var(--mat-sys-surface-container-lowest);
+}
+
+// A wide table scrolls sideways inside its own box instead of stretching the page on a phone.
+.claims__scroll {
+  overflow-x: auto;
+}
+
+.claims__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 16px;
+  color: var(--mat-sys-on-surface-variant);
+
+  mat-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 48px;
+  }
+}
+
+table {
+  width: 100%;
+  background: transparent;
+}

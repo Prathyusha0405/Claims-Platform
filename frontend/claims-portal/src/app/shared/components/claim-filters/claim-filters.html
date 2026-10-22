@@ -1,0 +1,37 @@
+<form class="filters" [formGroup]="form" role="search" aria-label="Search claims" (ngSubmit)="$event.preventDefault()">
+  <mat-form-field subscriptSizing="dynamic">
+    <mat-label>Claim number</mat-label>
+    <input matInput formControlName="claimNumber" placeholder="CLM-2026" autocomplete="off" />
+    <mat-icon matIconPrefix aria-hidden="true">search</mat-icon>
+  </mat-form-field>
+
+  <mat-form-field subscriptSizing="dynamic">
+    <mat-label>Policy number</mat-label>
+    <input matInput formControlName="policyNumber" placeholder="POL-2026" autocomplete="off" />
+  </mat-form-field>
+
+  <mat-form-field subscriptSizing="dynamic">
+    <mat-label>Status</mat-label>
+    <mat-select formControlName="status">
+      <mat-option value="">All statuses</mat-option>
+      @for (status of statuses; track status) {
+        <mat-option [value]="status">{{ statusLabels[status] }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field subscriptSizing="dynamic">
+    <mat-label>Submitted between</mat-label>
+    <mat-date-range-input [rangePicker]="range">
+      <input matStartDate formControlName="fromDate" placeholder="From" aria-label="Submitted from" />
+      <input matEndDate formControlName="toDate" placeholder="To" aria-label="Submitted to" />
+    </mat-date-range-input>
+    <mat-datepicker-toggle matIconSuffix [for]="range" />
+    <mat-date-range-picker #range />
+  </mat-form-field>
+
+  <button mat-button type="button" class="filters__clear" (click)="clear()">
+    <mat-icon aria-hidden="true">filter_alt_off</mat-icon>
+    Clear filters
+  </button>
+</form>

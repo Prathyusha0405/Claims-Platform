@@ -1,0 +1,51 @@
+:host {
+  display: block;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  text-decoration: none;
+}
+
+.missing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 16px;
+  text-align: center;
+
+  mat-icon {
+    width: 56px;
+    height: 56px;
+    font-size: 56px;
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+.panel--attention {
+  border-color: var(--app-warning);
+  background: var(--app-warning-container);
+  color: var(--app-on-warning-container);
+
+  .panel__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+.question {
+  margin: 0 0 16px;
+  padding: 8px 16px;
+  border-left: 4px solid var(--app-warning);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+mat-form-field {
+  width: 100%;
+}

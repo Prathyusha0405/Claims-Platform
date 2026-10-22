@@ -1,0 +1,13 @@
+@if (link(); as target) {
+  <a mat-icon-button class="bell" [routerLink]="target" [attr.aria-label]="label()">
+    <mat-icon
+      aria-hidden="true"
+      matBadgeSize="small"
+      matBadgeColor="warn"
+      [matBadge]="badge()"
+      [matBadgeHidden]="count() === 0"
+    >
+      notifications
+    </mat-icon>
+  </a>
+}

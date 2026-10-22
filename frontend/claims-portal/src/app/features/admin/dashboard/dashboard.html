@@ -1,0 +1,174 @@
+<div class="page">
+  <header class="page__header">
+    <div>
+      <h1 class="page__title">Dashboard</h1>
+      <p class="page__subtitle">
+        Read live from claim-service on every refresh.
+        @if (summary.value(); as current) {
+          Updated <time [attr.datetime]="current.generatedAt">{{ current.generatedAt | date: 'mediumTime' }}</time>.
+        }
+      </p>
+    </div>
+    <button mat-stroked-button type="button" [disabled]="refreshing()" (click)="refresh()">
+      <mat-icon aria-hidden="true">refresh</mat-icon>
+      Refresh
+    </button>
+  </header>
+
+  @if (refreshing()) {
+    <mat-progress-bar mode="indeterminate" aria-label="Refreshing the dashboard" />
+  }
+
+  <!-- Liability exposure: the number this dashboard leads with. -->
+  <section class="panel hero" aria-labelledby="hero-title" [class.stale]="exposure.loading() && exposure.value()">
+    <h2 id="hero-title" class="hero__label">Liability exposure</h2>
+    @if (exposure.error(); as error) {
+      <app-load-error [error]="error" subject="the liability exposure" (retry)="refresh()" />
+    } @else if (exposure.value(); as report) {
+      <p class="hero__figure">{{ report.totalLiabilityExposure | currency: currency : 'symbol' : '1.2-2' }}</p>
+      <p class="hero__caption">
+        <code>{{ report.formula }}</code>
+        <span>
+          across {{ report.exposedClaims | number }} {{ report.exposedClaims === 1 ? 'claim' : 'claims' }};
+          {{ report.excludedSettledAmount | currency: currency : 'symbol' : '1.2-2' }} of settled claims left out
+        </span>
+      </p>
+    }
+  </section>
+
+  <!-- Headline counts. -->
+  <section aria-label="Claim totals">
+    @if (summary.error(); as error) {
+      <div class="panel"><app-load-error [error]="error" subject="the claim totals" (retry)="refresh()" /></div>
+    } @else if (summary.value(); as totals) {
+      <ul class="kpis" [class.stale]="summary.loading()">
+        <li class="kpi">
+          <span class="kpi__label">Total claims</span>
+          <span class="kpi__value">{{ totals.totalClaims | number }}</span>
+        </li>
+        <li class="kpi">
+          <span class="kpi__label">Pending</span>
+          <span class="kpi__value">{{ totals.pendingClaims | number }}</span>
+          <span class="kpi__note">Submitted, under review or awaiting information</span>
+        </li>
+        <li class="kpi">
+          <span class="kpi__label">Approved</span>
+          <span class="kpi__value">{{ totals.approvedClaims | number }}</span>
+        </li>
+        <li class="kpi">
+          <span class="kpi__label">Rejected</span>
+          <span class="kpi__value">{{ totals.rejectedClaims | number }}</span>
+        </li>
+        <li class="kpi">
+          <span class="kpi__label">Settled</span>
+          <span class="kpi__value">{{ totals.settledClaims | number }}</span>
+        </li>
+      </ul>
+    }
+  </section>
+
+  <div class="charts">
+    <section class="panel" aria-labelledby="status-title" [class.stale]="summary.loading() && summary.value()">
+      <h2 id="status-title" class="panel__title">Claims by status</h2>
+      @if (summary.error(); as error) {
+        <app-load-error [error]="error" subject="claims by status" (retry)="refresh()" />
+      } @else if (summary.value()) {
+        <app-bar-chart
+          caption="Claims by status"
+          labelHeading="Status"
+          valueHeading="Claims"
+          [data]="statusBars()"
+        />
+      }
+    </section>
+
+    <section class="panel" aria-labelledby="exposure-title" [class.stale]="exposure.loading() && exposure.value()">
+      <h2 id="exposure-title" class="panel__title">Claim value by status</h2>
+      @if (exposure.error(); as error) {
+        <app-load-error [error]="error" subject="the exposure breakdown" (retry)="refresh()" />
+      } @else if (exposure.value()) {
+        <app-bar-chart
+          caption="Claim value by status"
+          labelHeading="Status"
+          valueHeading="Amount"
+          detailHeading="Claims"
+          [data]="exposureBars()"
+        />
+      }
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="workload-title" [class.stale]="workload.loading() && workload.value()">
+    <h2 id="workload-title" class="panel__title">Officer workload</h2>
+    @if (workload.error(); as error) {
+      <app-load-error [error]="error" subject="the officer workload" (retry)="refresh()" />
+    } @else if (workload.value(); as report) {
+      <p class="queue">
+        <mat-icon aria-hidden="true">inbox</mat-icon>
+        <span>
+          <strong>{{ report.unassignedClaims | number }}</strong>
+          {{ report.unassignedClaims === 1 ? 'claim is' : 'claims are' }} waiting in the work queue for an officer.
+        </span>
+      </p>
+
+      @if (report.officers.length === 0) {
+        <p class="muted">No officer has taken a claim yet.</p>
+      } @else {
+        <h3 class="chart-title">Open claims per officer</h3>
+        <app-bar-chart
+          caption="Open claims per officer"
+          labelHeading="Officer"
+          valueHeading="Open claims"
+          detailHeading="Breakdown"
+          [data]="workloadBars()"
+        />
+
+        <div class="table-scroll">
+          <table mat-table [dataSource]="report.officers" aria-label="Officer workload">
+            <ng-container matColumnDef="officer">
+              <th mat-header-cell *matHeaderCellDef>Officer</th>
+              <td mat-cell *matCellDef="let officer">{{ officerName(officer) }}</td>
+            </ng-container>
+            <ng-container matColumnDef="openClaims">
+              <th mat-header-cell *matHeaderCellDef class="numeric">Open</th>
+              <td mat-cell *matCellDef="let officer" class="numeric">{{ officer.openClaims | number }}</td>
+            </ng-container>
+            <ng-container matColumnDef="underReview">
+              <th mat-header-cell *matHeaderCellDef class="numeric">Under review</th>
+              <td mat-cell *matCellDef="let officer" class="numeric">{{ officer.underReview | number }}</td>
+            </ng-container>
+            <ng-container matColumnDef="awaitingInformation">
+              <th mat-header-cell *matHeaderCellDef class="numeric">Awaiting info</th>
+              <td mat-cell *matCellDef="let officer" class="numeric">{{ officer.awaitingInformation | number }}</td>
+            </ng-container>
+            <ng-container matColumnDef="approved">
+              <th mat-header-cell *matHeaderCellDef class="numeric">Approved</th>
+              <td mat-cell *matCellDef="let officer" class="numeric">{{ officer.approved | number }}</td>
+            </ng-container>
+            <ng-container matColumnDef="rejected">
+              <th mat-header-cell *matHeaderCellDef class="numeric">Rejected</th>
+              <td mat-cell *matCellDef="let officer" class="numeric">{{ officer.rejected | number }}</td>
+            </ng-container>
+            <ng-container matColumnDef="settled">
+              <th mat-header-cell *matHeaderCellDef class="numeric">Settled</th>
+              <td mat-cell *matCellDef="let officer" class="numeric">{{ officer.settled | number }}</td>
+            </ng-container>
+            <ng-container matColumnDef="totalAssigned">
+              <th mat-header-cell *matHeaderCellDef class="numeric">Total assigned</th>
+              <td mat-cell *matCellDef="let officer" class="numeric">{{ officer.totalAssigned | number }}</td>
+            </ng-container>
+            <ng-container matColumnDef="openExposure">
+              <th mat-header-cell *matHeaderCellDef class="numeric">Open exposure</th>
+              <td mat-cell *matCellDef="let officer" class="numeric">
+                {{ officer.openExposure | currency: currency : 'symbol' : '1.2-2' }}
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="workloadColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: workloadColumns"></tr>
+          </table>
+        </div>
+      }
+    }
+  </section>
+</div>

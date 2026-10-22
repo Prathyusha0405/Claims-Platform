@@ -1,0 +1,35 @@
+import { ClaimHistoryEntry, ClaimSummary } from '@shared/models/claim';
+
+/** The officer's most recent question to the claimant, which is what the claimant is being asked to answer. */
+export function latestInfoRequest(history: readonly ClaimHistoryEntry[]): ClaimHistoryEntry | null {
+  for (let index = history.length - 1; index >= 0; index--) {
+    if (history[index].eventType === 'ADDITIONAL_INFO_REQUESTED') {
+      return history[index];
+    }
+  }
+  return null;
+}
+
+/**
+ * What a particular officer can do with a claim, from the lifecycle rules the backend enforces:
+ *  - `take`               nobody holds it yet (SUBMITTED): any officer may take it
+ *  - `decide`             it is under review and this officer holds it: approve, reject or ask for information
+ *  - `held-by-other`      it is under review but another officer holds it: read and add notes only
+ *  - `awaiting-claimant`  the claimant has been asked for information: nothing to do until they answer
+ *  - `closed`             decided or settled: read and add notes only
+ * The UI only offers what the backend would accept; the backend still checks every action itself.
+ */
+export type ReviewAccess = 'take' | 'decide' | 'held-by-other' | 'awaiting-claimant' | 'closed';
+
+export function reviewAccess(claim: Pick<ClaimSummary, 'status' | 'assignedOfficerId'>, officerId: number): ReviewAccess {
+  switch (claim.status) {
+    case 'SUBMITTED':
+      return 'take';
+    case 'UNDER_REVIEW':
+      return claim.assignedOfficerId === officerId ? 'decide' : 'held-by-other';
+    case 'MORE_INFO_REQUIRED':
+      return 'awaiting-claimant';
+    default:
+      return 'closed';
+  }
+}

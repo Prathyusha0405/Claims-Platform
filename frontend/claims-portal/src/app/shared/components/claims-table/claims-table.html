@@ -1,0 +1,94 @@
+<div class="claims" [attr.aria-busy]="loading()">
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate" aria-label="Loading claims" />
+  }
+
+  @if (page(); as current) {
+    @if (current.totalElements === 0) {
+      <div class="claims__empty">
+        <mat-icon aria-hidden="true">inbox</mat-icon>
+        <p>{{ emptyMessage() }}</p>
+      </div>
+    } @else {
+      <div class="claims__scroll">
+        <table
+          mat-table
+          matSort
+          matSortDisableClear
+          [dataSource]="current.content"
+          [matSortActive]="request().sortField"
+          [matSortDirection]="request().sortDirection"
+          [attr.aria-label]="label()"
+          (matSortChange)="sortBy($event)"
+        >
+          <ng-container matColumnDef="claimNumber">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Claim number</th>
+            <td mat-cell *matCellDef="let claim">
+              <a [routerLink]="[linkBase(), claim.claimNumber]">{{ claim.claimNumber }}</a>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="policyNumber">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Policy</th>
+            <td mat-cell *matCellDef="let claim">{{ claim.policyNumber }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="claimType">
+            <th mat-header-cell *matHeaderCellDef>Type</th>
+            <td mat-cell *matCellDef="let claim">{{ typeLabel(claim.claimType) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Status</th>
+            <td mat-cell *matCellDef="let claim"><app-status-chip [status]="claim.status" /></td>
+          </ng-container>
+
+          <ng-container matColumnDef="claimAmount">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header class="numeric">Amount</th>
+            <td mat-cell *matCellDef="let claim" class="numeric">
+              {{ claim.claimAmount | currency: currency : 'symbol' : '1.2-2' }}
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="incidentDate">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Incident</th>
+            <td mat-cell *matCellDef="let claim">{{ claim.incidentDate | date: 'mediumDate' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="createdAt">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Submitted</th>
+            <td mat-cell *matCellDef="let claim">{{ claim.createdAt | date: 'mediumDate' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="action">
+            <th mat-header-cell *matHeaderCellDef><span class="visually-hidden">Action</span></th>
+            <td mat-cell *matCellDef="let claim">
+              <button
+                mat-flat-button
+                type="button"
+                [disabled]="busyId() !== null"
+                [attr.aria-label]="actionLabel() + ' ' + claim.claimNumber"
+                (click)="action.emit(claim)"
+              >
+                {{ actionLabel() }}
+              </button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="columns()"></tr>
+          <tr mat-row *matRowDef="let row; columns: columns()"></tr>
+        </table>
+      </div>
+
+      <mat-paginator
+        showFirstLastButtons
+        [length]="current.totalElements"
+        [pageIndex]="current.page"
+        [pageSize]="current.size"
+        [pageSizeOptions]="pageSizes"
+        aria-label="Choose a page of claims"
+        (page)="turnPage($event)"
+      />
+    }
+  }
+</div>

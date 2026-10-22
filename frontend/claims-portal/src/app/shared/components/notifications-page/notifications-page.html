@@ -1,0 +1,75 @@
+<div class="page">
+  <header class="page__header">
+    <div>
+      <h1 class="page__title">Notifications</h1>
+      <p class="page__subtitle">
+        @if (unreadCount() > 0) {
+          You have {{ unreadCount() }} unread {{ unreadCount() === 1 ? 'notification' : 'notifications' }}.
+        } @else {
+          You are all caught up.
+        }
+      </p>
+    </div>
+    <div class="actions">
+      <mat-button-toggle-group aria-label="Show" [value]="filter()" (change)="setFilter($event)">
+        <mat-button-toggle value="all">All</mat-button-toggle>
+        <mat-button-toggle value="unread">Unread</mat-button-toggle>
+      </mat-button-toggle-group>
+      <button mat-stroked-button type="button" [disabled]="unreadCount() === 0" (click)="markAllRead()">
+        <mat-icon aria-hidden="true">done_all</mat-icon>
+        Mark all as read
+      </button>
+    </div>
+  </header>
+
+  @if (inbox.error(); as error) {
+    <app-load-error [error]="error" subject="your notifications" (retry)="reload()" />
+  } @else {
+    @if (inbox.loading()) {
+      <mat-progress-bar mode="indeterminate" aria-label="Loading notifications" />
+    }
+
+    @if (inbox.value(); as current) {
+      @if (current.totalElements === 0) {
+        <section class="empty">
+          <mat-icon aria-hidden="true">notifications_none</mat-icon>
+          <p>{{ filter() === 'unread' ? 'No unread notifications.' : 'No notifications yet.' }}</p>
+        </section>
+      } @else {
+        <ul class="inbox">
+          @for (item of current.content; track item.id) {
+            <li class="inbox__item" [class.inbox__item--unread]="!item.read">
+              <a class="inbox__link" [routerLink]="[claimBase(), item.claimNumber]" (click)="markRead(item)">
+                <mat-icon class="inbox__icon" aria-hidden="true">{{ icons[item.eventType] }}</mat-icon>
+                <span class="inbox__body">
+                  <span class="inbox__message">
+                    @if (!item.read) {
+                      <span class="visually-hidden">Unread: </span>
+                    }
+                    {{ item.message }}
+                  </span>
+                  <span class="inbox__meta">
+                    {{ item.claimNumber }} · <time [attr.datetime]="item.createdAt">{{ item.createdAt | date: 'medium' }}</time>
+                  </span>
+                </span>
+                @if (!item.read) {
+                  <span class="inbox__dot" aria-hidden="true"></span>
+                }
+              </a>
+            </li>
+          }
+        </ul>
+
+        <mat-paginator
+          showFirstLastButtons
+          [length]="current.totalElements"
+          [pageIndex]="current.page"
+          [pageSize]="current.size"
+          [pageSizeOptions]="pageSizes"
+          aria-label="Choose a page of notifications"
+          (page)="turnPage($event)"
+        />
+      }
+    }
+  }
+</div>

@@ -1,0 +1,6 @@
+<main class="notice" aria-labelledby="not-found-title">
+  <mat-icon class="notice__icon" aria-hidden="true">search_off</mat-icon>
+  <h1 id="not-found-title" class="notice__title">Page not found</h1>
+  <p class="notice__text">The page you are looking for does not exist or has moved.</p>
+  <a mat-flat-button [routerLink]="home()">{{ signedIn() ? 'Back to my home page' : 'Go to sign in' }}</a>
+</main>

@@ -1,0 +1,21 @@
+<div class="page">
+  <header class="page__header">
+    <div>
+      <h1 class="page__title">Work queue</h1>
+      <p class="page__subtitle">Take a new claim, or pick up one you already hold.</p>
+    </div>
+  </header>
+
+  <mat-tab-group animationDuration="0ms" mat-stretch-tabs="false">
+    <mat-tab label="Unassigned">
+      <ng-template matTabContent>
+        <div class="tab"><app-unassigned-queue /></div>
+      </ng-template>
+    </mat-tab>
+    <mat-tab label="My claims">
+      <ng-template matTabContent>
+        <div class="tab"><app-my-assigned-claims /></div>
+      </ng-template>
+    </mat-tab>
+  </mat-tab-group>
+</div>
