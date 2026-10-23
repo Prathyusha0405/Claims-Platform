@@ -1,4 +1,27 @@
-# Chubb APAC Claims Management Platform
+<div align="center">
+
+# APAC Claims Platform
+
+**Motor & property claims · Explicit workflows · Traceable decisions**
+
+A claims management platform assessment for **Chubb APAC**: three Spring Boot microservices and an Angular app.
+
+![Java](https://img.shields.io/badge/Java-27-ED8B00?style=flat-square&logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.5.16-6DB33F?style=flat-square&logo=springboot&logoColor=white)
+![Angular](https://img.shields.io/badge/Angular-22-DD0031?style=flat-square&logo=angular&logoColor=white)
+![H2](https://img.shields.io/badge/H2-in--memory-09476B?style=flat-square)
+![Flyway](https://img.shields.io/badge/Flyway-migrations-CC0200?style=flat-square&logo=flyway&logoColor=white)
+
+![Local build](https://img.shields.io/badge/Local_Java_27_build-passed-2EA44F?style=flat-square)
+![Backend tests](https://img.shields.io/badge/Backend_tests-467_passed-2EA44F?style=flat-square)
+![Frontend tests](https://img.shields.io/badge/Frontend_tests-276_passed-2EA44F?style=flat-square)
+![Last verified](https://img.shields.io/badge/Last_verified-2026--10--23-blue?style=flat-square)
+
+[Quick start](#quick-start) · [Build & test](#tests) · [API guide](docs/api-guide.md) · [Requirements](#requirements-coverage) · [Architecture](architecture.md) · [AI journal](AI_WORKING_JOURNAL.md)
+
+</div>
+
+---
 
 A claims platform built as three Spring Boot microservices and an Angular single-page app. Claimants file and track
 insurance claims, claims staff work a queue and decide them, and managers see liability exposure and claims staff
@@ -182,7 +205,7 @@ How the brief in [CLAUDE.md](CLAUDE.md) maps to the code. "Verified" means check
 | Dashboard: totals, pending, approved, rejected, claims staff workload, liability exposure | Done, by market and in USD | exposure is `SUM(claimAmount) WHERE status != SETTLED` converted to USD at fixed indicative rates, in one class; every dashboard takes an optional `market`, and `byMarket` shows each market in its own currency and in USD |
 | Business context: six markets, each in its own currency | Done | a `market` and a `currency` on every claim; market filter on search, the work queue and the dashboards ([business context](#business-context)) |
 | Search by claim number, policy number, status, date range, assigned staff member; paging and sorting | Done, plus market | `GET /api/claims/search`; the work queue also filters by market |
-| Tests: service, controller, security, dashboard (JUnit 5, Mockito, MockMvc) | Done | 467 backend tests, plus 257 front-end tests ([results](#tests)) |
+| Tests: service, controller, security, dashboard (JUnit 5, Mockito, MockMvc) | Done | 467 backend tests, plus 276 front-end tests ([results](#tests)) |
 | Angular: Auth, Claimant, Staff, Manager, Shared, Core; the nine pages; reactive forms; route guards | Done | feature folders of standalone, lazy-loaded components rather than `NgModule`s |
 | README.md, architecture.md, AI_WORKING_JOURNAL.md | Done | [documentation map](#documentation-map) |
 
@@ -256,14 +279,15 @@ Everything has a development default; override with environment variables.
 cd backend
 .\mvnw.cmd test
 
-# Frontend: 257 tests in 22 files (Vitest + jsdom)
+# Frontend: 276 tests in 23 files (Vitest + jsdom)
 cd frontend\claims-portal
 npx ng test --watch=false
 ```
 
 Backend: service and lifecycle rules, controllers (MockMvc), security (role matrix, forged/expired tokens), dashboards and
 liability maths, repositories and search, and integration tests on H2 + Flyway including the seed data. Frontend: guards,
-interceptors, stores, API clients, routes, the auth and claimant pages and the utilities. Stop running services before
+interceptors, stores, API clients, routes, the auth and claimant pages, the work queue, the manager dashboard and the
+utilities. Stop running services before
 `mvnw test` if they were started from the same folder, since both write to `target/`.
 
 ### Latest results (2026-10-23, JDK 27)
@@ -274,16 +298,16 @@ interceptors, stores, API clients, routes, the auth and claimant pages and the u
 | claim-service | 225 | 225 | 0 | 0 |
 | assessment-service | 163 | 163 | 0 | 0 |
 | **Backend total** | **467** | **467** | **0** | **0** |
-| Frontend (22 files) | 257 | 257 | 0 | 0 |
-| **All** | **724** | **724** | **0** | **0** |
+| Frontend (23 files) | 276 | 276 | 0 | 0 |
+| **All** | **743** | **743** | **0** | **0** |
 
-Both suites were run in full on 2026-10-23, after currency and the market-aware dashboards were added, in a copy of
-`backend/` so that running services were not disturbed. The backend figures are two runs, not one. In the first full
-`mvnw test` run auth (79) passed; claim-service had 1 failure, a seed assertion that still expected one statistics row per
-status (fixed since); and assessment-service had **1 failure out of 163**, the flaky test described under *Known
-limitations* (it has failed under load three times now, on 2026-10-22 and twice on 2026-10-23). After the fix,
-claim-service (225) and assessment-service (163) were run again together and passed in full, the flaky test included. That
-test has not been fixed.
+Both suites were run in full on 2026-10-23, after the roles and the claims staff data names were renamed, in a copy of
+`backend/` so that running services were not disturbed. All three backend services passed in a single `mvnw test` run, the
+flaky test described under *Known limitations* included, and the production front-end build passes. That is not the whole
+history: earlier the same day, before the renames, the first full backend run had failures. claim-service had 1, a seed
+assertion that still expected one statistics row per status (fixed since), and assessment-service had **1 out of 163**,
+the flaky test, which has failed under load three times now (on 2026-10-22 and twice on 2026-10-23) and passes on re-run.
+That test has not been fixed.
 
 ### Coverage (measured 2026-10-22)
 

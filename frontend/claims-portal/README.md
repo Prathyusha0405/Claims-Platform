@@ -46,7 +46,7 @@ puts a reverse proxy with the same routing in front of the built files.
 | `npm start` | Dev server on port 4200 with the API proxy |
 | `npm run build` | Production build into `dist/` (initial bundle 501.15 kB, 126.5 kB transferred, measured 2026-10-23) |
 | `npm run watch` | Development build that rebuilds on change |
-| `npm test` / `npx ng test --watch=false` | Unit tests, 257 tests in 22 files (Vitest, jsdom) |
+| `npm test` / `npx ng test --watch=false` | Unit tests, 276 tests in 23 files (Vitest, jsdom) |
 
 On a OneDrive folder `ng build` and `ng test` can take one to three minutes.
 
@@ -121,7 +121,7 @@ a page two roles need (notifications) lives in `shared`.
 
 ## Testing
 
-`npx ng test --watch=false` runs 257 tests: guards, interceptors, stores, API clients, the route table, the auth and
+`npx ng test --watch=false` runs 276 tests: guards, interceptors, stores, API clients, the route table, the auth and
 claimant pages, the work queue's market filter, the manager dashboard, the money formatter, and the utilities. Coverage was 69.7% of lines overall before the market, currency and dashboard work (not re-measured). The claim-review and
 my-assigned-claims pages have no component specs; they were checked by walking the running app in a browser. The figures,
 how they were measured and the exact commands are in the [root README](../../README.md#tests).

@@ -71,7 +71,7 @@ The brief leaves these open; the choices made are stated here so they can be cha
 | **Consistency** | One writer per fact: claim-service owns every status change, behind a transition table and an optimistic-lock version column |
 | **Resilience** | Assessment-service bounds its calls to claim-service (2 s connect, 5 s read) and turns failures into 502/503 instead of hanging or showing stale numbers |
 | **Maintainability** | Same layering in every service (controller, service, repository, entity, dto); business rules in one named class each (`ClaimStatus`, `LiabilityExposureCalculator`, `PageableSanitizer`); constructor injection throughout and no field injection in production code |
-| **Testability** | 467 backend and 257 front-end tests; the event publisher (`ClaimEventPublisher`) and the claim-service client (`ClaimServiceClient`) are interfaces, and the liability calculation is a pure function |
+| **Testability** | 467 backend and 276 front-end tests; the event publisher (`ClaimEventPublisher`) and the claim-service client (`ClaimServiceClient`) are interfaces, and the liability calculation is a pure function |
 | **Performance** | Indexes follow the queries, list endpoints are paged and capped at 100 rows, sort fields are a whitelist, dashboards use `GROUP BY` aggregates rather than loading claims |
 | **Accessibility** | Material components, AA-contrast status colours, a "View as table" toggle on the dashboard charts |
 | **Extensibility** | A broker can replace the local event publisher without touching the service layer (section 7); each service can move to its own database or host, because the only things they share are the JWT secret and assessment-service's configured URL for claim-service |

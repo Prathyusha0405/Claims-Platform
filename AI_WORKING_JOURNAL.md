@@ -1069,6 +1069,56 @@ live walk-through rather than by reading eighty files.
 
 ---
 
+# 25. README Header With Badges
+
+## Prompt
+
+> in README.md file can you add like this
+
+followed by a pasted README header: a centred title, a one-line tagline, a short description, two rows of shield badges (the stack,
+then build and test results) and a row of links to the main sections and documents, closed by a horizontal rule.
+
+## Accepted
+
+The same layout at the top of `README.md`, filled with this project's facts instead of the pasted ones:
+
+- **Title and tagline.** "APAC Claims Platform" and the tagline "Motor & property claims · Explicit workflows · Traceable decisions",
+  kept word for word because it describes this project as well (the claim lifecycle is an explicit state machine and every change
+  is written to the claim history).
+- **Stack badges.** Java 27, Spring Boot 3.5.16, Angular 22, H2 (in memory) and Flyway, read from `backend/pom.xml` and
+  `frontend/claims-portal/package.json`. The pasted header showed Java 17, PostgreSQL, Kafka and Docker. They were not copied: `CLAUDE.md`
+  rules out PostgreSQL, Docker and Kafka, and the build uses JDK 27, so those badges would have been wrong.
+- **Result badges.** Local build passed, backend tests 467 passed, front-end tests 276 passed, and a "last verified 2026-10-23" badge.
+  These are fixed text, not a live build status: nothing runs them on a schedule, so the date badge says when they were true. The
+  pasted "PostgreSQL test skipped" badge has no equivalent here (no test is skipped) and was dropped.
+- **Links.** Quick start, Build & test (the Tests section), API guide (`docs/api-guide.md`), Requirements (the coverage table),
+  Architecture (`architecture.md`) and the AI journal, all checked by the link checker.
+- **Stale counts fixed while there.** The README, `architecture.md` and the front-end README still said 257 front-end tests in 22
+  files and 724 in total, left over from before the role rename. They now say 276 in 23 files and 743 in total, and the "Latest
+  results" note was rewritten to say what the last run showed and keep the earlier failures on the record.
+
+Not verified: whether the badge images render. They are fetched from shields.io when GitHub shows the page, and this machine's
+network inspects TLS, so the requests could not be made here. The addresses use the same static-badge format as the pasted ones; the
+Flyway logo name is the one most likely to be wrong, and a missing logo only means the badge shows without its icon.
+
+## Rejected
+
+Copying the pasted header unchanged. Three of its badges would have claimed technology this project does not use.
+
+Wiring the result badges to a CI service. There is no pipeline, and adding one was not asked for.
+
+## Manual Changes
+
+None recorded.
+
+## Reasoning
+
+A README is read before anything else, so a first screen that states the stack, the verified state and where to go next is worth the
+few lines. The risk with badges is that they assert things; every one here comes from a file or a run that can be pointed to, and the
+one thing not checked is said so.
+
+---
+
 # Key Decisions
 
 1. Microservices over Monolith
