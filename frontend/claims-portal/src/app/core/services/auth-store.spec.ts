@@ -46,21 +46,21 @@ describe('AuthStore', () => {
 
   describe('login', () => {
     it('posts the credentials without a token and opens the session from the response', () => {
-      const user = fixtureUser('OFFICER', { id: 2, fullName: 'Rajesh Kumar' });
+      const user = fixtureUser('CLAIMS_STAFF', { id: 2, fullName: 'Rajesh Kumar' });
       const response = authResponseFor(user);
       let result: unknown;
 
-      store.login({ email: 'officer@chubb.com', password: 'Officer@123' }).subscribe((u) => (result = u));
+      store.login({ email: 'staff@chubb.com', password: 'Staff@123' }).subscribe((u) => (result = u));
       const request = http.expectOne('/api/auth/login');
       expect(request.request.method).toBe('POST');
-      expect(request.request.body).toEqual({ email: 'officer@chubb.com', password: 'Officer@123' });
+      expect(request.request.body).toEqual({ email: 'staff@chubb.com', password: 'Staff@123' });
       expect(request.request.headers.has('Authorization')).toBe(false);
       request.flush(response);
 
       expect(result).toEqual(user);
       expect(store.isAuthenticated()).toBe(true);
       expect(store.user()).toEqual(user);
-      expect(store.role()).toBe('OFFICER');
+      expect(store.role()).toBe('CLAIMS_STAFF');
       expect(store.token()).toBe(response.accessToken);
       expect(store.hasValidSession()).toBe(true);
     });
@@ -142,13 +142,13 @@ describe('AuthStore', () => {
     });
 
     it('because the server refused the token: remembers the page they were on', async () => {
-      await router.navigateByUrl('/officer/claims/CLM-2026-000001?tab=notes');
+      await router.navigateByUrl('/staff/claims/CLM-2026-000001?tab=notes');
       const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
       store.signOut('unauthorized');
 
       expect(navigate).toHaveBeenCalledWith(['/auth/login'], {
-        queryParams: { returnUrl: '/officer/claims/CLM-2026-000001?tab=notes' },
+        queryParams: { returnUrl: '/staff/claims/CLM-2026-000001?tab=notes' },
       });
       expect(notify.info).toHaveBeenCalledOnce();
     });
@@ -181,7 +181,7 @@ describe('AuthStore', () => {
   describe('discard', () => {
     it('drops the session silently', () => {
       const navigate = vi.spyOn(router, 'navigate');
-      signInAs('ADMIN');
+      signInAs('MANAGER');
 
       store.discard();
 

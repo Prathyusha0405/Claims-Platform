@@ -10,10 +10,12 @@ public record RemoteClaim(
         String claimNumber,
         String policyNumber,
         String claimType,
+        String market,
         ClaimStatus status,
         BigDecimal claimAmount,
+        String currency,
         LocalDate incidentDate,
-        Long assignedOfficerId,
+        Long assignedStaffId,
         Instant createdAt,
         Instant updatedAt) {
 }

@@ -9,12 +9,12 @@ describe('side navigation', () => {
     ]);
   });
 
-  it('gives an officer the work queue and notifications', () => {
-    expect(navItemsFor('OFFICER').map((item) => item.route)).toEqual(['/officer/work-queue', '/officer/notifications']);
+  it('gives claims staff the work queue and notifications', () => {
+    expect(navItemsFor('CLAIMS_STAFF').map((item) => item.route)).toEqual(['/staff/work-queue', '/staff/notifications']);
   });
 
-  it('gives an admin the dashboard only', () => {
-    expect(navItemsFor('ADMIN').map((item) => item.route)).toEqual(['/admin/dashboard']);
+  it('gives a manager the dashboard only', () => {
+    expect(navItemsFor('MANAGER').map((item) => item.route)).toEqual(['/manager/dashboard']);
   });
 
   it('shows nothing to somebody who is not signed in', () => {
@@ -22,7 +22,7 @@ describe('side navigation', () => {
   });
 
   it('only ever lists a route inside the area of the role it is shown to', () => {
-    const area = { CLAIMANT: '/claimant/', OFFICER: '/officer/', ADMIN: '/admin/' } as const;
+    const area = { CLAIMANT: '/claimant/', CLAIMS_STAFF: '/staff/', MANAGER: '/manager/' } as const;
 
     for (const item of NAV_ITEMS) {
       for (const role of item.roles) {

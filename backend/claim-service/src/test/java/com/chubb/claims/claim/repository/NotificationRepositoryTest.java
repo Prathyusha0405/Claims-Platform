@@ -4,6 +4,7 @@ import com.chubb.claims.claim.dto.NotificationResponse;
 import com.chubb.claims.claim.entity.Claim;
 import com.chubb.claims.claim.entity.ClaimEventType;
 import com.chubb.claims.claim.entity.ClaimType;
+import com.chubb.claims.claim.entity.Market;
 import com.chubb.claims.claim.entity.Notification;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,7 @@ class NotificationRepositoryTest {
     private static final Sort OLDEST_FIRST = Sort.by(Sort.Order.asc("createdAt"), Sort.Order.asc("id"));
 
     private static final long JANE = 5L;
-    private static final long OFFICER = 7L;
+    private static final long CLAIMS_STAFF = 7L;
 
     @Autowired
     private ClaimRepository claimRepository;
@@ -43,7 +44,7 @@ class NotificationRepositoryTest {
     private Notification janeAssigned;
     private Notification janeSubmittedB;
     private Notification janeAssignedB;
-    private Notification officerInfo;
+    private Notification staffInfo;
 
     @BeforeEach
     void setUp() {
@@ -55,7 +56,7 @@ class NotificationRepositoryTest {
         // Two raised in the same instant: the id decides their order.
         janeSubmittedB = save(JANE, claimB, ClaimEventType.CLAIM_CREATED, T0.plusSeconds(7200), false);
         janeAssignedB = save(JANE, claimB, ClaimEventType.CLAIM_ASSIGNED, T0.plusSeconds(7200), false);
-        officerInfo = save(OFFICER, claimA, ClaimEventType.ADDITIONAL_INFO_RECEIVED, T0.plusSeconds(10800), false);
+        staffInfo = save(CLAIMS_STAFF, claimA, ClaimEventType.ADDITIONAL_INFO_RECEIVED, T0.plusSeconds(10800), false);
         notificationRepository.flush();
     }
 
@@ -76,11 +77,11 @@ class NotificationRepositoryTest {
     }
 
     @Test
-    void theOfficersInboxIsSeparateFromTheClaimants() {
-        Page<NotificationResponse> inbox = notificationRepository.findInbox(OFFICER, false, PageRequest.of(0, 10, NEWEST_FIRST));
+    void theStaffInboxIsSeparateFromTheClaimants() {
+        Page<NotificationResponse> inbox = notificationRepository.findInbox(CLAIMS_STAFF, false, PageRequest.of(0, 10, NEWEST_FIRST));
 
         assertThat(inbox.getContent()).singleElement().satisfies(item -> {
-            assertThat(item.id()).isEqualTo(officerInfo.getId());
+            assertThat(item.id()).isEqualTo(staffInfo.getId());
             assertThat(item.eventType()).isEqualTo(ClaimEventType.ADDITIONAL_INFO_RECEIVED);
             assertThat(item.claimNumber()).isEqualTo("CLM-2026-000001");
         });
@@ -121,7 +122,7 @@ class NotificationRepositoryTest {
         assertThat(notificationRepository.findInboxItem(janeAssigned.getId(), JANE)).get()
                 .extracting(NotificationResponse::claimNumber).isEqualTo("CLM-2026-000001");
 
-        assertThat(notificationRepository.findInboxItem(janeAssigned.getId(), OFFICER)).isEmpty();
+        assertThat(notificationRepository.findInboxItem(janeAssigned.getId(), CLAIMS_STAFF)).isEmpty();
         assertThat(notificationRepository.findInboxItem(987_654L, JANE)).isEmpty();
     }
 
@@ -134,13 +135,13 @@ class NotificationRepositoryTest {
         assertThat(notificationRepository.findInboxItem(janeAssigned.getId(), JANE)).get()
                 .extracting(NotificationResponse::read).isEqualTo(true);
         assertThat(notificationRepository.countByRecipientIdAndReadFalse(JANE)).isEqualTo(2);
-        assertThat(notificationRepository.countByRecipientIdAndReadFalse(OFFICER)).isEqualTo(1);
+        assertThat(notificationRepository.countByRecipientIdAndReadFalse(CLAIMS_STAFF)).isEqualTo(1);
     }
 
     @Test
     void markReadChangesNothingWhenItIsAlreadyReadOrBelongsToSomeoneElse() {
         assertThat(notificationRepository.markRead(janeRead.getId(), JANE)).isZero();           // already read
-        assertThat(notificationRepository.markRead(janeAssigned.getId(), OFFICER)).isZero();    // not theirs
+        assertThat(notificationRepository.markRead(janeAssigned.getId(), CLAIMS_STAFF)).isZero();    // not theirs
         assertThat(notificationRepository.markRead(987_654L, JANE)).isZero();                   // does not exist
 
         assertThat(notificationRepository.countByRecipientIdAndReadFalse(JANE)).isEqualTo(3);
@@ -151,7 +152,7 @@ class NotificationRepositoryTest {
         assertThat(notificationRepository.markAllRead(JANE)).isEqualTo(3);
 
         assertThat(notificationRepository.countByRecipientIdAndReadFalse(JANE)).isZero();
-        assertThat(notificationRepository.countByRecipientIdAndReadFalse(OFFICER)).isEqualTo(1);
+        assertThat(notificationRepository.countByRecipientIdAndReadFalse(CLAIMS_STAFF)).isEqualTo(1);
         assertThat(notificationRepository.markAllRead(JANE)).isZero();                          // nothing left to do
     }
 
@@ -164,7 +165,7 @@ class NotificationRepositoryTest {
     }
 
     private static Claim claim(String number) {
-        return new Claim(number, "POL-NOTIFY", JANE, "Jane Tan", "jane@example.com", ClaimType.AUTO,
+        return new Claim(number, "POL-NOTIFY", JANE, "Jane Tan", "jane@example.com", ClaimType.AUTO, Market.SG,
                 LocalDate.of(2026, 10, 1), null, "notification test", new BigDecimal("100.00"), T0);
     }
 }

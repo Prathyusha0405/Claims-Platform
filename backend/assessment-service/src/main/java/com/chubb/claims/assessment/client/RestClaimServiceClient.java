@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 
 /**
  * HTTP implementation of {@link ClaimServiceClient}. Claim-service's error answers are translated into this
- * service's exceptions, keeping claim-service's own message, so an officer sees "This claim is not assigned to you"
+ * service's exceptions, keeping claim-service's own message, so a staff member sees "This claim is not assigned to you"
  * rather than a generic failure.
  */
 @Component
@@ -46,13 +46,16 @@ public class RestClaimServiceClient implements ClaimServiceClient {
     }
 
     @Override
-    public RemotePage<RemoteClaim> findUnassigned(Pageable pageable) {
+    public RemotePage<RemoteClaim> findUnassigned(String market, Pageable pageable) {
         return call(() -> restClient.get()
                 .uri(uri -> {
                     uri.path("/api/claims/search")
                             .queryParam("status", ClaimStatus.SUBMITTED)
                             .queryParam("page", pageable.getPageNumber())
                             .queryParam("size", pageable.getPageSize());
+                    if (market != null && !market.isBlank()) {
+                        uri.queryParam("market", market.trim());
+                    }
                     pageable.getSort().forEach(order -> uri.queryParam("sort",
                             order.getProperty() + "," + order.getDirection().name().toLowerCase(Locale.ROOT)));
                     return uri.build();

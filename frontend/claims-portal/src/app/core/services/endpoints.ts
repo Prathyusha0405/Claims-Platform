@@ -3,9 +3,9 @@
  * (proxy.conf.json) routes each prefix to its service, and in production a reverse proxy does the same, so the app
  * never knows three host names and no CORS configuration is needed.
  *
- *   /api/auth, /api/users                → auth-service       :8081
+ *   /api/auth, /api/users                → auth-service       :8084
  *   /api/claims, /api/notifications      → claim-service      :8082
- *   /api/officer, /api/dashboard         → assessment-service :8083
+ *   /api/staff, /api/dashboard           → assessment-service :8083
  */
 export const API = {
   auth: {
@@ -26,17 +26,17 @@ export const API = {
     markRead: (id: number) => `/api/notifications/${id}/read`,
     readAll: '/api/notifications/read-all',
   },
-  officer: {
-    unassigned: '/api/officer/claims/unassigned',
-    assign: (id: number) => `/api/officer/claims/${id}/assign`,
-    approve: (id: number) => `/api/officer/claims/${id}/approve`,
-    reject: (id: number) => `/api/officer/claims/${id}/reject`,
-    requestInfo: (id: number) => `/api/officer/claims/${id}/request-info`,
-    notes: (id: number) => `/api/officer/claims/${id}/notes`,
+  staff: {
+    unassigned: '/api/staff/claims/unassigned',
+    assign: (id: number) => `/api/staff/claims/${id}/assign`,
+    approve: (id: number) => `/api/staff/claims/${id}/approve`,
+    reject: (id: number) => `/api/staff/claims/${id}/reject`,
+    requestInfo: (id: number) => `/api/staff/claims/${id}/request-info`,
+    notes: (id: number) => `/api/staff/claims/${id}/notes`,
   },
   dashboard: {
     statusSummary: '/api/dashboard/status-summary',
-    officerWorkload: '/api/dashboard/officer-workload',
+    staffWorkload: '/api/dashboard/staff-workload',
     liabilityExposure: '/api/dashboard/liability-exposure',
   },
 } as const;

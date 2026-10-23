@@ -9,13 +9,13 @@ public enum ClaimStatus {
     REJECTED,
     SETTLED;
 
-    /** Not yet decided: still waiting for an officer, being reviewed, or waiting for the claimant. */
+    /** Not yet decided: still waiting for a staff member, being reviewed, or waiting for the claimant. */
     public boolean isPending() {
         return this == SUBMITTED || this == UNDER_REVIEW || this == MORE_INFO_REQUIRED;
     }
 
-    /** Assigned to an officer and not yet decided. */
-    public boolean isOpenForOfficer() {
+    /** Assigned to a staff member and not yet decided. */
+    public boolean isOpenForStaff() {
         return this == UNDER_REVIEW || this == MORE_INFO_REQUIRED;
     }
 

@@ -1,12 +1,14 @@
 package com.chubb.claims.claim.seed;
 
-import com.chubb.claims.claim.dto.OfficerStatusTotal;
+import com.chubb.claims.claim.dto.StaffStatusTotal;
 import com.chubb.claims.claim.dto.StatusTotal;
 import com.chubb.claims.claim.entity.Claim;
 import com.chubb.claims.claim.entity.ClaimEventType;
 import com.chubb.claims.claim.entity.ClaimHistory;
 import com.chubb.claims.claim.entity.ClaimStatus;
 import com.chubb.claims.claim.entity.ClaimType;
+import com.chubb.claims.claim.entity.Currency;
+import com.chubb.claims.claim.entity.Market;
 import com.chubb.claims.claim.entity.Notification;
 import com.chubb.claims.claim.repository.ClaimHistoryRepository;
 import com.chubb.claims.claim.repository.ClaimRepository;
@@ -25,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.EnumMap;
@@ -111,6 +114,15 @@ class SeedDataIntegrationTest {
     }
 
     @Test
+    void everyClaimHasAMarketThatAgreesWithItsPolicyNumberAndTheDocumentedSplit() {
+        assertThat(grouped("SELECT market AS k, COUNT(*) AS n FROM claims GROUP BY market")).containsOnly(
+                Map.entry("AU", 70L), Map.entry("HK", 30L), Map.entry("JP", 40L),
+                Map.entry("MY", 35L), Map.entry("NZ", 25L), Map.entry("SG", 50L));
+        assertThat(count("SELECT COUNT(*) FROM claims WHERE policy_number NOT LIKE '%-' || market || '-%'"))
+                .as("every policy number carries its claim's market").isZero();
+    }
+
+    @Test
     void policyNumbersLookLikeRealPoliciesAndAreSharedAcrossAClaimantsClaims() {
         assertThat(count("SELECT COUNT(*) FROM claims WHERE policy_number NOT REGEXP '^(MTR|PRP)-(AU|SG|HK|JP|MY|NZ)-20(24|25)-[0-9]{6}$'")).isZero();
         assertThat(count("SELECT COUNT(*) FROM claims WHERE (claim_type = 'AUTO' AND policy_number NOT LIKE 'MTR-%') "
@@ -139,24 +151,48 @@ class SeedDataIntegrationTest {
     }
 
     @Test
-    void amountsAreRealisticAndTwoDecimalPlaces() {
-        assertThat(jdbc.queryForObject("SELECT MIN(claim_amount) FROM claims", BigDecimal.class)).isGreaterThanOrEqualTo(new BigDecimal("500"));
-        assertThat(jdbc.queryForObject("SELECT MAX(claim_amount) FROM claims", BigDecimal.class)).isLessThan(new BigDecimal("200000"));
-        assertThat(count("SELECT COUNT(*) FROM claims WHERE claim_type = 'AUTO' AND claim_amount > 50000")).isZero();
+    void amountsAreRealisticInEveryCurrencyAndYenAreWholeNumbers() {
+        // the rates the amounts were converted at (units per USD); realism is judged in USD-equivalents
+        Map<String, BigDecimal> perUsd = Map.of("AUD", new BigDecimal("1.50"), "HKD", new BigDecimal("7.80"), "JPY", new BigDecimal("150"),
+                "MYR", new BigDecimal("4.50"), "NZD", new BigDecimal("1.65"), "SGD", new BigDecimal("1.35"));
+
+        perUsd.forEach((currency, rate) -> {
+            BigDecimal lowest = jdbc.queryForObject("SELECT MIN(claim_amount) FROM claims WHERE currency = ?", BigDecimal.class, currency);
+            BigDecimal highest = jdbc.queryForObject("SELECT MAX(claim_amount) FROM claims WHERE currency = ?", BigDecimal.class, currency);
+            BigDecimal highestMotor = jdbc.queryForObject(
+                    "SELECT MAX(claim_amount) FROM claims WHERE currency = ? AND claim_type = 'AUTO'", BigDecimal.class, currency);
+
+            assertThat(lowest.divide(rate, 2, RoundingMode.HALF_UP)).as("smallest %s claim in USD", currency)
+                    .isGreaterThanOrEqualTo(new BigDecimal("500"));
+            assertThat(highest.divide(rate, 2, RoundingMode.HALF_UP)).as("largest %s claim in USD", currency)
+                    .isLessThan(new BigDecimal("200000"));
+            assertThat(highestMotor.divide(rate, 2, RoundingMode.HALF_UP)).as("largest %s motor claim in USD", currency)
+                    .isLessThan(new BigDecimal("50000"));
+        });
+        assertThat(count("SELECT COUNT(*) FROM claims WHERE currency = 'JPY' AND claim_amount <> FLOOR(claim_amount)")).isZero();
+    }
+
+    @Test
+    void everyClaimIsInTheCurrencyOfItsMarket() {
+        assertThat(grouped("SELECT currency AS k, COUNT(*) AS n FROM claims GROUP BY currency")).containsOnly(
+                Map.entry("AUD", 70L), Map.entry("HKD", 30L), Map.entry("JPY", 40L),
+                Map.entry("MYR", 35L), Map.entry("NZD", 25L), Map.entry("SGD", 50L));
+        assertThat(claimRepository.findAll())
+                .allSatisfy(claim -> assertThat(claim.getCurrency()).isEqualTo(claim.getMarket().currency()));
     }
 
     @Test
     void aClaimIsUnassignedExactlyWhileItIsSubmitted() {
-        assertThat(count("SELECT COUNT(*) FROM claims WHERE status = 'SUBMITTED' AND assigned_officer_id IS NOT NULL")).isZero();
-        assertThat(count("SELECT COUNT(*) FROM claims WHERE status <> 'SUBMITTED' AND assigned_officer_id IS NULL")).isZero();
+        assertThat(count("SELECT COUNT(*) FROM claims WHERE status = 'SUBMITTED' AND assigned_staff_id IS NOT NULL")).isZero();
+        assertThat(count("SELECT COUNT(*) FROM claims WHERE status <> 'SUBMITTED' AND assigned_staff_id IS NULL")).isZero();
     }
 
     @Test
     void claimsReferenceTheRealStaffAndClaimantIdsFromAuthServicesSeed() {
-        assertThat(count("SELECT COUNT(*) FROM claims WHERE assigned_officer_id IS NOT NULL AND assigned_officer_id NOT BETWEEN 2 AND 6")).isZero();
+        assertThat(count("SELECT COUNT(*) FROM claims WHERE assigned_staff_id IS NOT NULL AND assigned_staff_id NOT BETWEEN 2 AND 6")).isZero();
         assertThat(count("SELECT COUNT(*) FROM claims WHERE claimant_id NOT BETWEEN 7 AND 26")).isZero();
         assertThat(count("SELECT COUNT(DISTINCT claimant_id) FROM claims")).isEqualTo(20);
-        assertThat(count("SELECT COUNT(DISTINCT assigned_officer_id) FROM claims")).isEqualTo(5);
+        assertThat(count("SELECT COUNT(DISTINCT assigned_staff_id) FROM claims")).isEqualTo(5);
         // claimants file a realistic number of claims, nobody dominates
         assertThat(jdbc.queryForList("SELECT COUNT(*) FROM claims GROUP BY claimant_id", Long.class)).allSatisfy(n -> assertThat(n).isBetween(8L, 16L));
     }
@@ -166,35 +202,40 @@ class SeedDataIntegrationTest {
     @Test
     void dashboardFiguresMatchTheOnesDocumentedInTheSeedFile() {
         Map<ClaimStatus, Long> counts = new EnumMap<>(ClaimStatus.class);
-        Map<ClaimStatus, BigDecimal> amounts = new EnumMap<>(ClaimStatus.class);
+        Map<Market, BigDecimal> exposureByMarket = new java.util.TreeMap<>();   // each in its own market's currency
         for (StatusTotal total : claimRepository.totalsByStatus()) {
-            counts.put(total.status(), total.claimCount());
-            amounts.put(total.status(), total.totalAmount());
+            counts.merge(total.status(), total.claimCount(), Long::sum);
+            assertThat(total.currency()).as("currency of %s claims", total.market()).isEqualTo(total.market().currency());
+            if (total.status() != ClaimStatus.SETTLED) {
+                exposureByMarket.merge(total.market(), total.totalAmount(), BigDecimal::add);
+            }
         }
 
         long pending = counts.get(ClaimStatus.SUBMITTED) + counts.get(ClaimStatus.UNDER_REVIEW) + counts.get(ClaimStatus.MORE_INFO_REQUIRED);
-        BigDecimal exposure = amounts.entrySet().stream().filter(e -> e.getKey() != ClaimStatus.SETTLED)
-                .map(Map.Entry::getValue).reduce(BigDecimal.ZERO, BigDecimal::add);
 
         assertThat(counts.values().stream().mapToLong(Long::longValue).sum()).isEqualTo(250);   // total claims
         assertThat(pending).isEqualTo(168);                                                      // pending claims
         assertThat(counts.get(ClaimStatus.APPROVED)).isEqualTo(28);                              // approved claims
         assertThat(counts.get(ClaimStatus.REJECTED)).isEqualTo(18);                              // rejected claims
         assertThat(counts.get(ClaimStatus.SETTLED)).isEqualTo(36);
-        assertThat(exposure).isEqualByComparingTo("2674303.50");                                  // outstanding liability exposure
-        assertThat(amounts.get(ClaimStatus.SETTLED)).isEqualByComparingTo("480955.50");           // excluded from exposure
-        assertThat(amounts.get(ClaimStatus.SUBMITTED)).isEqualByComparingTo("850718.00");
-        assertThat(amounts.get(ClaimStatus.UNDER_REVIEW)).isEqualByComparingTo("1033466.00");
+        // Amounts of different currencies are never added together: the exposure is pinned per market, in its own currency.
+        // (assessment-service converts them to USD; its seed test pins the USD figures, 2,674,303.58 in all.)
+        assertThat(exposureByMarket.get(Market.AU)).isEqualByComparingTo("969380.25");        // AUD
+        assertThat(exposureByMarket.get(Market.HK)).isEqualByComparingTo("2447203.20");       // HKD
+        assertThat(exposureByMarket.get(Market.JP)).isEqualByComparingTo("90401325");         // JPY
+        assertThat(exposureByMarket.get(Market.MY)).isEqualByComparingTo("893641.50");        // MYR
+        assertThat(exposureByMarket.get(Market.NZ)).isEqualByComparingTo("426171.12");        // NZD
+        assertThat(exposureByMarket.get(Market.SG)).isEqualByComparingTo("883923.38");        // SGD
     }
 
     @Test
-    void officerWorkloadIsUnevenSoTheDashboardHasSomethingToShow() {
+    void staffWorkloadIsUnevenSoTheDashboardHasSomethingToShow() {
         Map<Long, Long> open = new java.util.TreeMap<>();
         Map<Long, Long> total = new java.util.TreeMap<>();
-        for (OfficerStatusTotal t : claimRepository.totalsByOfficerAndStatus()) {
-            total.merge(t.officerId(), t.claimCount(), Long::sum);
+        for (StaffStatusTotal t : claimRepository.totalsByStaffAndStatus()) {
+            total.merge(t.staffId(), t.claimCount(), Long::sum);
             if (t.status() == ClaimStatus.UNDER_REVIEW || t.status() == ClaimStatus.MORE_INFO_REQUIRED) {
-                open.merge(t.officerId(), t.claimCount(), Long::sum);
+                open.merge(t.staffId(), t.claimCount(), Long::sum);
             }
         }
 
@@ -231,17 +272,17 @@ class SeedDataIntegrationTest {
     }
 
     @Test
-    void historyActorsAreTheClaimantOrTheAssignedOfficer() {
+    void historyActorsAreTheClaimantOrTheAssignedStaffMember() {
         assertThat(count("SELECT COUNT(*) FROM claim_history h JOIN claims c ON c.id = h.claim_id WHERE h.performed_by_role = 'CLAIMANT' AND h.performed_by <> c.claimant_id"))
                 .isZero();
-        assertThat(count("SELECT COUNT(*) FROM claim_history h JOIN claims c ON c.id = h.claim_id WHERE h.performed_by_role = 'OFFICER' AND h.performed_by <> c.assigned_officer_id"))
+        assertThat(count("SELECT COUNT(*) FROM claim_history h JOIN claims c ON c.id = h.claim_id WHERE h.performed_by_role = 'CLAIMS_STAFF' AND h.performed_by <> c.assigned_staff_id"))
                 .isZero();
     }
 
     @Test
     void notificationsGoToTheRightPeopleAndMostRecentOnesAreUnread() {
         assertThat(count("SELECT COUNT(*) FROM notifications n JOIN claims c ON c.id = n.claim_id "
-                + "WHERE n.recipient_id <> c.claimant_id AND n.recipient_id <> c.assigned_officer_id")).isZero();
+                + "WHERE n.recipient_id <> c.claimant_id AND n.recipient_id <> c.assigned_staff_id")).isZero();
         assertThat(grouped("SELECT CASE WHEN is_read THEN 'read' ELSE 'unread' END AS k, COUNT(*) AS n FROM notifications GROUP BY is_read"))
                 .containsOnly(Map.entry("read", 170L), Map.entry("unread", 30L));
         assertThat(count("SELECT COUNT(*) FROM notifications WHERE is_read = FALSE AND created_at < TIMESTAMP WITH TIME ZONE '2026-10-08 00:00:00+00:00'")).isZero();
@@ -259,6 +300,8 @@ class SeedDataIntegrationTest {
 
         assertThat(claims).hasSize(250);
         assertThat(claims).extracting(Claim::getClaimType).containsOnly(ClaimType.AUTO, ClaimType.HOME);
+        assertThat(claims).extracting(Claim::getMarket).containsOnly(Market.values());
+        assertThat(claims).extracting(Claim::getCurrency).containsOnly(Currency.values());
         assertThat(claims).extracting(Claim::getStatus).containsOnly(ClaimStatus.values());
         assertThat(history).hasSize(500);
         assertThat(history).extracting(ClaimHistory::getEventType).containsOnly(ClaimEventType.values());
@@ -270,44 +313,52 @@ class SeedDataIntegrationTest {
     void countersWereMovedPastTheSeededRowsSoNewClaimsDoNotCollide() {
         String next = claimNumberGenerator.next();
         Claim fresh = claimRepository.saveAndFlush(new Claim(next, "MTR-AU-2025-123456", 7L, "Liam O'Connor", "liam.oconnor@example.com",
-                ClaimType.AUTO, LocalDate.of(2026, 10, 20), null, "New claim after the seed", new BigDecimal("1000.00"), ANCHOR));
+                ClaimType.AUTO, Market.AU, LocalDate.of(2026, 10, 20), null, "New claim after the seed", new BigDecimal("1000.00"), ANCHOR));
 
         assertThat(next).endsWith("-000251");
         assertThat(fresh.getId()).isEqualTo(251L);
     }
 
     @Test
-    void theApiServesTheSeededClaimsToOfficersAndClaimants() throws Exception {
-        String officer = "Bearer " + TestJwt.token(jwtSecret, 2L, Role.OFFICER);
+    void theApiServesTheSeededClaimsToClaimsStaffAndClaimants() throws Exception {
+        String staffMember = "Bearer " + TestJwt.token(jwtSecret, 2L, Role.CLAIMS_STAFF);
         // user 12 is Wei Ling Tan, a Singapore claimant
         String claimant = "Bearer " + TestJwt.token(jwtSecret, 12L, Role.CLAIMANT);
         long weiLingsClaims = count("SELECT COUNT(*) FROM claims WHERE claimant_id = 12");
 
-        mockMvc.perform(get("/api/claims/search").param("size", "1").header(HttpHeaders.AUTHORIZATION, officer))
+        mockMvc.perform(get("/api/claims/search").param("size", "1").header(HttpHeaders.AUTHORIZATION, staffMember))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(250));
-        mockMvc.perform(get("/api/claims/search").param("status", "SUBMITTED").param("size", "1").header(HttpHeaders.AUTHORIZATION, officer))
+        mockMvc.perform(get("/api/claims/search").param("status", "SUBMITTED").param("size", "1").header(HttpHeaders.AUTHORIZATION, staffMember))
                 .andExpect(jsonPath("$.totalElements").value(100));
+        mockMvc.perform(get("/api/claims/search").param("market", "SG").param("size", "1").header(HttpHeaders.AUTHORIZATION, staffMember))
+                .andExpect(jsonPath("$.totalElements").value(50))
+                .andExpect(jsonPath("$.content[0].market").value("SG"))
+                .andExpect(jsonPath("$.content[0].currency").value("SGD"));
+        mockMvc.perform(get("/api/claims/search").param("market", "NZ").param("status", "SUBMITTED").param("size", "1")
+                        .header(HttpHeaders.AUTHORIZATION, staffMember))
+                .andExpect(jsonPath("$.totalElements").value(count("SELECT COUNT(*) FROM claims WHERE market = 'NZ' AND status = 'SUBMITTED'")));
         mockMvc.perform(get("/api/claims/my-claims").param("size", "1").header(HttpHeaders.AUTHORIZATION, claimant))
                 .andExpect(jsonPath("$.totalElements").value(weiLingsClaims));
-        mockMvc.perform(get("/api/claims/CLM-2025-000001").header(HttpHeaders.AUTHORIZATION, officer))
+        mockMvc.perform(get("/api/claims/CLM-2025-000001").header(HttpHeaders.AUTHORIZATION, staffMember))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SETTLED"))
                 .andExpect(jsonPath("$.history[0].eventType").value("CLAIM_CREATED"));
-        mockMvc.perform(get("/api/internal/claims/statistics").header(HttpHeaders.AUTHORIZATION, officer))
+        mockMvc.perform(get("/api/internal/claims/statistics").header(HttpHeaders.AUTHORIZATION, staffMember))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.byStatus.length()").value(6));
+                .andExpect(jsonPath("$.byStatus.length()").value(35))    // one row per market and status that has claims
+                .andExpect(jsonPath("$.byStatus[0].currency").isString());
     }
 
     @Test
     void theApiServesTheSeededInboxesAndTheirUnreadBadges() throws Exception {
-        // Whoever has the most unread notifications (lowest id on a tie): claimant or officer, both are in the seed.
+        // Whoever has the most unread notifications (lowest id on a tie): claimant or staff member, both are in the seed.
         Map<String, Object> busiest = jdbc.queryForMap("SELECT recipient_id, COUNT(*) AS unread FROM notifications "
                 + "WHERE is_read = FALSE GROUP BY recipient_id ORDER BY unread DESC, recipient_id LIMIT 1");
         long recipient = ((Number) busiest.get("RECIPIENT_ID")).longValue();
         long unread = ((Number) busiest.get("UNREAD")).longValue();
         long total = count("SELECT COUNT(*) FROM notifications WHERE recipient_id = " + recipient);
-        // Users 2..6 are the seeded officers; everyone else who is notified is a claimant.
-        String bearer = "Bearer " + TestJwt.token(jwtSecret, recipient, recipient <= 6 ? Role.OFFICER : Role.CLAIMANT);
+        // Users 2..6 are the seeded claims staff; everyone else who is notified is a claimant.
+        String bearer = "Bearer " + TestJwt.token(jwtSecret, recipient, recipient <= 6 ? Role.CLAIMS_STAFF : Role.CLAIMANT);
 
         mockMvc.perform(get("/api/notifications/unread-count").header(HttpHeaders.AUTHORIZATION, bearer))
                 .andExpect(status().isOk())

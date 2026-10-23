@@ -35,7 +35,7 @@ public class AuthController {
     @ResponseStatus(HttpStatus.CREATED)
     @SecurityRequirements
     @Operation(summary = "Register a claimant account",
-            description = "Self-registration always creates a CLAIMANT. Officer and admin accounts are provisioned separately.")
+            description = "Self-registration always creates a CLAIMANT. Claims staff and manager accounts are provisioned separately.")
     @ApiResponse(responseCode = "400", description = "Validation failed",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "409", description = "Email already registered",

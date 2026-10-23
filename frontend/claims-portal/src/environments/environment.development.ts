@@ -2,5 +2,4 @@
 export const environment = {
   production: false,
   showDemoLogins: true,
-  reportingCurrency: 'USD',
 };

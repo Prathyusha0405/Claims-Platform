@@ -11,7 +11,7 @@ import java.io.IOException;
 
 /**
  * Sends the current caller's own bearer token on every request to claim-service, so claim-service authorizes the
- * officer or admin directly and no service credentials exist. Outside a request (no authentication) nothing is added
+ * staff member or manager directly and no service credentials exist. Outside a request (no authentication) nothing is added
  * and claim-service answers 401.
  */
 public class BearerTokenForwardingInterceptor implements ClientHttpRequestInterceptor {

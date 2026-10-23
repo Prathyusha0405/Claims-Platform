@@ -39,8 +39,8 @@ afterEach(() => TestBed.inject(AuthStore).discard());
 describe('AppShell', () => {
   it.each([
     ['CLAIMANT', ['My claims', 'New claim', 'Notifications'], '/claimant/my-claims'],
-    ['OFFICER', ['Work queue', 'Notifications'], '/officer/work-queue'],
-    ['ADMIN', ['Dashboard'], '/admin/dashboard'],
+    ['CLAIMS_STAFF', ['Work queue', 'Notifications'], '/staff/work-queue'],
+    ['MANAGER', ['Dashboard'], '/manager/dashboard'],
   ] as const)('shows a %s only their own navigation', async (role, labels, home) => {
     configure();
     signInAs(role);
@@ -63,7 +63,7 @@ describe('AppShell', () => {
 
   it('shows who is signed in', async () => {
     configure();
-    signInAs('OFFICER', { fullName: 'Rajesh Kumar' });
+    signInAs('CLAIMS_STAFF', { fullName: 'Rajesh Kumar' });
 
     const fixture = await render(AppShell);
 
@@ -130,7 +130,7 @@ describe('UserMenu', () => {
 
   it('opens a menu with the name, email and role, and signs out from it', async () => {
     configure();
-    signInAs('OFFICER', { fullName: 'Rajesh Kumar', email: 'rajesh.kumar@chubb.com' });
+    signInAs('CLAIMS_STAFF', { fullName: 'Rajesh Kumar', email: 'rajesh.kumar@chubb.com' });
     const signOut = vi.spyOn(TestBed.inject(AuthStore), 'signOut').mockImplementation(() => undefined);
     const fixture = await render(UserMenu);
     const menu = await TestbedHarnessEnvironment.loader(fixture).getHarness(MatMenuHarness);
@@ -140,7 +140,7 @@ describe('UserMenu', () => {
     const summary = document.querySelector('.user-menu__summary')?.textContent ?? '';
     expect(summary).toContain('Rajesh Kumar');
     expect(summary).toContain('rajesh.kumar@chubb.com');
-    expect(summary).toContain('Claims officer');
+    expect(summary).toContain('Claims staff');
 
     const items = await menu.getItems();
     expect(items).toHaveLength(1);
@@ -154,7 +154,7 @@ describe('UserMenu', () => {
 describe('Forbidden', () => {
   it.each([
     ['CLAIMANT', 'Claimant', '/claimant/my-claims'],
-    ['ADMIN', 'Administrator', '/admin/dashboard'],
+    ['MANAGER', 'Manager', '/manager/dashboard'],
   ] as const)('tells a signed-in %s what they are and links to their home page', async (role: Role, label, home) => {
     configure();
     signInAs(role);
@@ -180,12 +180,12 @@ describe('NotFound', () => {
 
   it('offers a signed-in user their home page', async () => {
     configure();
-    signInAs('OFFICER');
+    signInAs('CLAIMS_STAFF');
 
     const fixture = await render(NotFound);
 
     expect(text(fixture, 'a')).toEqual(['Back to my home page']);
-    expect(fixture.nativeElement.querySelector('a').getAttribute('href')).toBe('/officer/work-queue');
+    expect(fixture.nativeElement.querySelector('a').getAttribute('href')).toBe('/staff/work-queue');
   });
 });
 

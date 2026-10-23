@@ -36,8 +36,11 @@ public final class ClaimSpecifications {
         if (criteria.status() != null) {
             filters.add((root, query, cb) -> cb.equal(root.get("status"), criteria.status()));
         }
-        if (criteria.assignedOfficerId() != null) {
-            filters.add((root, query, cb) -> cb.equal(root.get("assignedOfficerId"), criteria.assignedOfficerId()));
+        if (criteria.market() != null) {
+            filters.add((root, query, cb) -> cb.equal(root.get("market"), criteria.market()));
+        }
+        if (criteria.assignedStaffId() != null) {
+            filters.add((root, query, cb) -> cb.equal(root.get("assignedStaffId"), criteria.assignedStaffId()));
         }
         if (criteria.fromDate() != null) {
             Instant start = startOfDay(criteria.fromDate());

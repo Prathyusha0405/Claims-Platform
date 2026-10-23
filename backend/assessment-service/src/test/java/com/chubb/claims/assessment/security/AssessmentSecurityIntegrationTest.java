@@ -21,14 +21,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AssessmentSecurityIntegrationTest extends AbstractStubbedClaimServiceTest {
 
     private static final List<String> DASHBOARDS = List.of(
-            "/api/dashboard/status-summary", "/api/dashboard/officer-workload", "/api/dashboard/liability-exposure");
+            "/api/dashboard/status-summary", "/api/dashboard/staff-workload", "/api/dashboard/liability-exposure");
 
     private List<MockHttpServletRequestBuilder> allEndpoints() {
         List<MockHttpServletRequestBuilder> requests = new java.util.ArrayList<>();
-        requests.add(get("/api/officer/claims/unassigned"));
-        requests.add(get("/api/officer/claims/10/notes"));
+        requests.add(get("/api/staff/claims/unassigned"));
+        requests.add(get("/api/staff/claims/10/notes"));
         for (String action : List.of("assign", "approve", "reject", "request-info", "notes")) {
-            requests.add(post("/api/officer/claims/10/" + action).contentType(MediaType.APPLICATION_JSON)
+            requests.add(post("/api/staff/claims/10/" + action).contentType(MediaType.APPLICATION_JSON)
                     .content("{\"reason\":\"x\",\"message\":\"x\",\"content\":\"x\"}"));
         }
         DASHBOARDS.forEach(dashboard -> requests.add(get(dashboard)));
@@ -47,19 +47,19 @@ class AssessmentSecurityIntegrationTest extends AbstractStubbedClaimServiceTest 
 
     @Test
     void forgedExpiredForeignAndMalformedTokensAreRejected() throws Exception {
-        String[] parts = token(1L, Role.OFFICER).split("\\.");
-        String adminPayload = Base64.getUrlEncoder().withoutPadding().encodeToString("{\"sub\":\"1\",\"role\":\"ADMIN\"}".getBytes());
+        String[] parts = token(1L, Role.CLAIMS_STAFF).split("\\.");
+        String adminPayload = Base64.getUrlEncoder().withoutPadding().encodeToString("{\"sub\":\"1\",\"role\":\"MANAGER\"}".getBytes());
 
         String[] badTokens = {
                 parts[0] + "." + adminPayload + "." + parts[2],
-                TestJwt.token(jwtSecret, 1L, "a@b.com", "A", Role.ADMIN, -1_000L),
-                TestJwt.token("another-secret-key-that-is-long-enough-1234", 1L, Role.ADMIN),
+                TestJwt.token(jwtSecret, 1L, "a@b.com", "A", Role.MANAGER, -1_000L),
+                TestJwt.token("another-secret-key-that-is-long-enough-1234", 1L, Role.MANAGER),
                 "not-a-jwt"};
 
         for (String bad : badTokens) {
             mockMvc.perform(get("/api/dashboard/status-summary").header(HttpHeaders.AUTHORIZATION, "Bearer " + bad))
                     .andExpect(status().isUnauthorized());
-            mockMvc.perform(get("/api/officer/claims/unassigned").header(HttpHeaders.AUTHORIZATION, "Bearer " + bad))
+            mockMvc.perform(get("/api/staff/claims/unassigned").header(HttpHeaders.AUTHORIZATION, "Bearer " + bad))
                     .andExpect(status().isUnauthorized());
         }
         mockMvc.perform(get("/api/dashboard/status-summary").header(HttpHeaders.AUTHORIZATION, "Basic dXNlcjpwYXNz"))
@@ -78,34 +78,34 @@ class AssessmentSecurityIntegrationTest extends AbstractStubbedClaimServiceTest 
     }
 
     @Test
-    void officersUseTheOfficerApiButNotTheDashboards() throws Exception {
-        String officer = bearer(4L, Role.OFFICER);
+    void claimsStaffUseTheStaffApiButNotTheDashboards() throws Exception {
+        String staffMember = bearer(4L, Role.CLAIMS_STAFF);
         CLAIM_SERVICE.on("GET", "/api/claims/search", 200, ClaimJson.page());
         CLAIM_SERVICE.on("GET", "/api/internal/claims/10", 200, ClaimJson.claim(10L, "SUBMITTED", null));
 
-        mockMvc.perform(get("/api/officer/claims/unassigned").header(HttpHeaders.AUTHORIZATION, officer))
+        mockMvc.perform(get("/api/staff/claims/unassigned").header(HttpHeaders.AUTHORIZATION, staffMember))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(0));
-        mockMvc.perform(get("/api/officer/claims/10/notes").header(HttpHeaders.AUTHORIZATION, officer))
+        mockMvc.perform(get("/api/staff/claims/10/notes").header(HttpHeaders.AUTHORIZATION, staffMember))
                 .andExpect(status().isOk());
         for (String dashboard : DASHBOARDS) {
-            mockMvc.perform(get(dashboard).header(HttpHeaders.AUTHORIZATION, officer)).andExpect(status().isForbidden());
+            mockMvc.perform(get(dashboard).header(HttpHeaders.AUTHORIZATION, staffMember)).andExpect(status().isForbidden());
         }
     }
 
     @Test
-    void adminsUseTheDashboardsButNotTheOfficerApi() throws Exception {
-        String admin = bearer(5L, Role.ADMIN);
+    void managersUseTheDashboardsButNotTheStaffApi() throws Exception {
+        String admin = bearer(5L, Role.MANAGER);
         CLAIM_SERVICE.on("GET", "/api/internal/claims/statistics", 200, ClaimJson.statistics());
 
         for (String dashboard : DASHBOARDS) {
             mockMvc.perform(get(dashboard).header(HttpHeaders.AUTHORIZATION, admin)).andExpect(status().isOk());
         }
-        mockMvc.perform(get("/api/officer/claims/unassigned").header(HttpHeaders.AUTHORIZATION, admin))
+        mockMvc.perform(get("/api/staff/claims/unassigned").header(HttpHeaders.AUTHORIZATION, admin))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/officer/claims/10/notes").header(HttpHeaders.AUTHORIZATION, admin))
+        mockMvc.perform(get("/api/staff/claims/10/notes").header(HttpHeaders.AUTHORIZATION, admin))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(post("/api/officer/claims/10/assign").header(HttpHeaders.AUTHORIZATION, admin))
+        mockMvc.perform(post("/api/staff/claims/10/assign").header(HttpHeaders.AUTHORIZATION, admin))
                 .andExpect(status().isForbidden());
     }
 
@@ -122,22 +122,22 @@ class AssessmentSecurityIntegrationTest extends AbstractStubbedClaimServiceTest 
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.info.title").value("Assessment Service API"))
-                .andExpect(jsonPath("$.paths['/api/officer/claims/unassigned'].get").exists())
-                .andExpect(jsonPath("$.paths['/api/officer/claims/{id}/assign'].post").exists())
-                .andExpect(jsonPath("$.paths['/api/officer/claims/{id}/approve'].post").exists())
-                .andExpect(jsonPath("$.paths['/api/officer/claims/{id}/reject'].post").exists())
-                .andExpect(jsonPath("$.paths['/api/officer/claims/{id}/request-info'].post").exists())
-                .andExpect(jsonPath("$.paths['/api/officer/claims/{id}/notes'].post").exists())
-                .andExpect(jsonPath("$.paths['/api/officer/claims/{id}/notes'].get").exists())
-                .andExpect(jsonPath("$.paths['/api/officer/claims/{id}/notes'].get.responses['404']").exists())
+                .andExpect(jsonPath("$.paths['/api/staff/claims/unassigned'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/assign'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/approve'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/reject'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/request-info'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/notes'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/notes'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/notes'].get.responses['404']").exists())
                 .andExpect(jsonPath("$.paths['/api/dashboard/status-summary'].get").exists())
-                .andExpect(jsonPath("$.paths['/api/dashboard/officer-workload'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/dashboard/staff-workload'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/dashboard/liability-exposure'].get").exists())
                 .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
-                .andExpect(jsonPath("$.paths['/api/officer/claims/unassigned'].get.parameters[*].name")
+                .andExpect(jsonPath("$.paths['/api/staff/claims/unassigned'].get.parameters[*].name")
                         .value(hasItems("page", "size", "sort")))
-                .andExpect(jsonPath("$.paths['/api/officer/claims/{id}/notes'].post.responses['201']").exists())
-                .andExpect(jsonPath("$.paths['/api/officer/claims/{id}/reject'].post.responses['409']").exists())
+                .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/notes'].post.responses['201']").exists())
+                .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/reject'].post.responses['409']").exists())
                 .andExpect(jsonPath("$.paths['/api/dashboard/liability-exposure'].get.responses['403']").exists());
     }
 }

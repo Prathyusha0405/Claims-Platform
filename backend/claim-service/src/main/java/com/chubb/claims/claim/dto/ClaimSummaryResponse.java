@@ -3,6 +3,8 @@ package com.chubb.claims.claim.dto;
 import com.chubb.claims.claim.entity.Claim;
 import com.chubb.claims.claim.entity.ClaimStatus;
 import com.chubb.claims.claim.entity.ClaimType;
+import com.chubb.claims.claim.entity.Currency;
+import com.chubb.claims.claim.entity.Market;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -14,10 +16,12 @@ public record ClaimSummaryResponse(
         String claimNumber,
         String policyNumber,
         ClaimType claimType,
+        Market market,
         ClaimStatus status,
         BigDecimal claimAmount,
+        Currency currency,
         LocalDate incidentDate,
-        Long assignedOfficerId,
+        Long assignedStaffId,
         Instant createdAt,
         Instant updatedAt) {
 
@@ -27,10 +31,12 @@ public record ClaimSummaryResponse(
                 claim.getClaimNumber(),
                 claim.getPolicyNumber(),
                 claim.getClaimType(),
+                claim.getMarket(),
                 claim.getStatus(),
                 claim.getClaimAmount(),
+                claim.getCurrency(),
                 claim.getIncidentDate(),
-                claim.getAssignedOfficerId(),
+                claim.getAssignedStaffId(),
                 claim.getCreatedAt(),
                 claim.getUpdatedAt());
     }

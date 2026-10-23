@@ -1,24 +1,24 @@
 -- =====================================================================================================================
 -- CHUBB APAC CLAIMS PLATFORM  |  ASSESSMENT SERVICE  |  V2__seed_data.sql   (DEMO DATA)
 -- ---------------------------------------------------------------------------------------------------------------------
--- 150 claim assessments (one per claim an officer has taken, same claim ids as claim-service) and 200 officer notes.
+-- 150 claim assessments (one per claim a staff member has taken, same claim ids as claim-service) and 200 staff member notes.
 -- Data is anchored at 2026-10-22; all timestamps are UTC.
 --
--- WHAT THE DASHBOARDS ADD: these tables hold only what is the OFFICER's own (who took a claim, the decision, the review
+-- WHAT THE DASHBOARDS ADD: these tables hold only what is the CLAIMS_STAFF's own (who took a claim, the decision, the review
 -- notes). Claim totals, statuses and amounts are read live from claim-service, so there is nothing to keep in sync.
--- The officers' display names in the Officer Workload dashboard come from claim_assessments.officer_name.
+-- The claims staff' display names in the Staff member Workload dashboard come from claim_assessments.staff_name.
 --
 -- Decisions recorded: {APPROVED=64, REJECTED=18}  (approved + settled claims were approved; rejected claims rejected)
 -- Note types:         {INFO_REQUEST=15, GENERAL=120, APPROVAL=47, REJECTION=18}
 --
--- ID CONTRACT: officer_id 2..6 are auth-service staff ids; claim_id 1..250 are claim-service claim ids.
+-- ID CONTRACT: staff_id 2..6 are auth-service staff ids; claim_id 1..250 are claim-service claim ids.
 -- To start with an EMPTY platform instead, skip this file: set FLYWAY_TARGET=1 (spring.flyway.target).
 -- =====================================================================================================================
 
 -- ---------------------------------------------------------------------------------------------------------------------
--- claim_assessments (150), in the order the officers took the claims
+-- claim_assessments (150), in the order the claims staff took the claims
 -- ---------------------------------------------------------------------------------------------------------------------
-INSERT INTO claim_assessments (id, claim_id, claim_number, officer_id, officer_name, decision, decision_reason, assigned_at, decided_at, created_at, updated_at, version) VALUES
+INSERT INTO claim_assessments (id, claim_id, claim_number, staff_id, staff_name, decision, decision_reason, assigned_at, decided_at, created_at, updated_at, version) VALUES
     (1, 1, 'CLM-2025-000001', 5, 'Rajesh Kumar', 'APPROVED', NULL, '2025-11-10 20:28:43+00:00', '2025-11-21 00:27:22+00:00', '2025-11-10 20:28:43+00:00', '2025-11-21 00:27:22+00:00', 1),  -- CLM-2025-000001 | Rajesh Kumar | SETTLED (APPROVED)
     (2, 2, 'CLM-2025-000002', 2, 'Olivia Bennett', 'APPROVED', NULL, '2025-11-19 01:31:19+00:00', '2025-11-26 17:40:40+00:00', '2025-11-19 01:31:19+00:00', '2025-11-26 17:40:40+00:00', 1),  -- CLM-2025-000002 | Olivia Bennett | SETTLED (APPROVED)
     (3, 3, 'CLM-2025-000003', 6, 'Grace Wong', 'APPROVED', 'Policy in force at the date of loss; cover confirmed and excess applied.', '2025-12-02 09:03:23+00:00', '2025-12-10 16:03:22+00:00', '2025-12-02 09:03:23+00:00', '2025-12-10 16:03:22+00:00', 1),  -- CLM-2025-000003 | Grace Wong | SETTLED (APPROVED)
@@ -45,7 +45,7 @@ INSERT INTO claim_assessments (id, claim_id, claim_number, officer_id, officer_n
     (24, 24, 'CLM-2026-000024', 2, 'Olivia Bennett', 'APPROVED', NULL, '2026-03-01 03:18:40+00:00', '2026-03-05 06:30:38+00:00', '2026-03-01 03:18:40+00:00', '2026-03-05 06:30:38+00:00', 1),  -- CLM-2026-000024 | Olivia Bennett | SETTLED (APPROVED)
     (25, 25, 'CLM-2026-000025', 2, 'Olivia Bennett', 'APPROVED', 'Contents list reconciled with the receipts provided; approved.', '2026-03-02 08:30:01+00:00', '2026-03-09 14:18:19+00:00', '2026-03-02 08:30:01+00:00', '2026-03-09 14:18:19+00:00', 1);  -- CLM-2026-000025 | Olivia Bennett | APPROVED (APPROVED)
 
-INSERT INTO claim_assessments (id, claim_id, claim_number, officer_id, officer_name, decision, decision_reason, assigned_at, decided_at, created_at, updated_at, version) VALUES
+INSERT INTO claim_assessments (id, claim_id, claim_number, staff_id, staff_name, decision, decision_reason, assigned_at, decided_at, created_at, updated_at, version) VALUES
     (26, 26, 'CLM-2026-000026', 6, 'Grace Wong', 'APPROVED', NULL, '2026-03-02 17:38:05+00:00', '2026-03-19 11:54:04+00:00', '2026-03-02 17:38:05+00:00', '2026-03-19 11:54:04+00:00', 1),  -- CLM-2026-000026 | Grace Wong | SETTLED (APPROVED)
     (27, 28, 'CLM-2026-000028', 2, 'Olivia Bennett', 'REJECTED', 'Inconsistencies between the claim statement and the CCTV evidence.', '2026-03-08 16:38:40+00:00', '2026-03-25 00:48:10+00:00', '2026-03-08 16:38:40+00:00', '2026-03-25 00:48:10+00:00', 1),  -- CLM-2026-000028 | Olivia Bennett | REJECTED (REJECTED)
     (28, 29, 'CLM-2026-000029', 5, 'Rajesh Kumar', 'APPROVED', 'Damage consistent with the reported incident; estimate within the regional benchmark.', '2026-03-09 13:21:45+00:00', '2026-03-20 23:35:43+00:00', '2026-03-09 13:21:45+00:00', '2026-03-20 23:35:43+00:00', 1),  -- CLM-2026-000029 | Rajesh Kumar | APPROVED (APPROVED)
@@ -72,7 +72,7 @@ INSERT INTO claim_assessments (id, claim_id, claim_number, officer_id, officer_n
     (49, 49, 'CLM-2026-000049', 4, 'Mei Lin Chua', 'APPROVED', NULL, '2026-04-22 09:17:37+00:00', '2026-05-03 21:09:36+00:00', '2026-04-22 09:17:37+00:00', '2026-05-03 21:09:36+00:00', 1),  -- CLM-2026-000049 | Mei Lin Chua | APPROVED (APPROVED)
     (50, 50, 'CLM-2026-000050', 4, 'Mei Lin Chua', 'REJECTED', 'Policy had lapsed before the incident date; premium unpaid.', '2026-04-27 16:06:02+00:00', '2026-05-01 22:49:14+00:00', '2026-04-27 16:06:02+00:00', '2026-05-01 22:49:14+00:00', 1);  -- CLM-2026-000050 | Mei Lin Chua | REJECTED (REJECTED)
 
-INSERT INTO claim_assessments (id, claim_id, claim_number, officer_id, officer_name, decision, decision_reason, assigned_at, decided_at, created_at, updated_at, version) VALUES
+INSERT INTO claim_assessments (id, claim_id, claim_number, staff_id, staff_name, decision, decision_reason, assigned_at, decided_at, created_at, updated_at, version) VALUES
     (51, 52, 'CLM-2026-000052', 2, 'Olivia Bennett', 'APPROVED', 'Contents list reconciled with the receipts provided; approved.', '2026-04-29 20:09:54+00:00', '2026-05-11 09:54:06+00:00', '2026-04-29 20:09:54+00:00', '2026-05-11 09:54:06+00:00', 1),  -- CLM-2026-000052 | Olivia Bennett | APPROVED (APPROVED)
     (52, 51, 'CLM-2026-000051', 2, 'Olivia Bennett', 'APPROVED', 'Contents list reconciled with the receipts provided; approved.', '2026-05-01 02:04:00+00:00', '2026-05-07 01:24:30+00:00', '2026-05-01 02:04:00+00:00', '2026-05-07 01:24:30+00:00', 1),  -- CLM-2026-000051 | Olivia Bennett | SETTLED (APPROVED)
     (53, 53, 'CLM-2026-000053', 5, 'Rajesh Kumar', 'REJECTED', 'Policy had lapsed before the incident date; premium unpaid.', '2026-05-04 02:12:43+00:00', '2026-05-19 00:35:03+00:00', '2026-05-04 02:12:43+00:00', '2026-05-19 00:35:03+00:00', 1),  -- CLM-2026-000053 | Rajesh Kumar | REJECTED (REJECTED)
@@ -99,7 +99,7 @@ INSERT INTO claim_assessments (id, claim_id, claim_number, officer_id, officer_n
     (74, 74, 'CLM-2026-000074', 5, 'Rajesh Kumar', 'APPROVED', 'Loss verified by assessor inspection; approved at the quoted amount.', '2026-07-23 08:54:11+00:00', '2026-07-28 16:25:19+00:00', '2026-07-23 08:54:11+00:00', '2026-07-28 16:25:19+00:00', 1),  -- CLM-2026-000074 | Rajesh Kumar | APPROVED (APPROVED)
     (75, 75, 'CLM-2026-000075', 2, 'Olivia Bennett', 'APPROVED', 'Policy in force at the date of loss; cover confirmed and excess applied.', '2026-07-27 22:08:13+00:00', '2026-08-02 21:36:50+00:00', '2026-07-27 22:08:13+00:00', '2026-08-02 21:36:50+00:00', 1);  -- CLM-2026-000075 | Olivia Bennett | APPROVED (APPROVED)
 
-INSERT INTO claim_assessments (id, claim_id, claim_number, officer_id, officer_name, decision, decision_reason, assigned_at, decided_at, created_at, updated_at, version) VALUES
+INSERT INTO claim_assessments (id, claim_id, claim_number, staff_id, staff_name, decision, decision_reason, assigned_at, decided_at, created_at, updated_at, version) VALUES
     (76, 76, 'CLM-2026-000076', 3, 'Kenji Sato', 'APPROVED', NULL, '2026-07-30 21:17:39+00:00', '2026-08-04 05:55:06+00:00', '2026-07-30 21:17:39+00:00', '2026-08-04 05:55:06+00:00', 1),  -- CLM-2026-000076 | Kenji Sato | APPROVED (APPROVED)
     (77, 77, 'CLM-2026-000077', 2, 'Olivia Bennett', 'APPROVED', NULL, '2026-08-06 02:46:36+00:00', '2026-08-20 18:09:51+00:00', '2026-08-06 02:46:36+00:00', '2026-08-20 18:09:51+00:00', 1),  -- CLM-2026-000077 | Olivia Bennett | APPROVED (APPROVED)
     (78, 78, 'CLM-2026-000078', 2, 'Olivia Bennett', 'APPROVED', 'Total loss assessment accepted; settle at the agreed market value.', '2026-08-07 00:05:02+00:00', '2026-08-24 01:49:01+00:00', '2026-08-07 00:05:02+00:00', '2026-08-24 01:49:01+00:00', 1),  -- CLM-2026-000078 | Olivia Bennett | APPROVED (APPROVED)
@@ -126,7 +126,7 @@ INSERT INTO claim_assessments (id, claim_id, claim_number, officer_id, officer_n
     (99, 100, 'CLM-2026-000100', 2, 'Olivia Bennett', NULL, NULL, '2026-08-29 15:50:14+00:00', NULL, '2026-08-29 15:50:14+00:00', '2026-08-29 15:50:14+00:00', 0),  -- CLM-2026-000100 | Olivia Bennett | UNDER_REVIEW (in progress)
     (100, 97, 'CLM-2026-000097', 2, 'Olivia Bennett', NULL, NULL, '2026-08-29 15:50:51+00:00', NULL, '2026-08-29 15:50:51+00:00', '2026-08-29 15:50:51+00:00', 0);  -- CLM-2026-000097 | Olivia Bennett | UNDER_REVIEW (in progress)
 
-INSERT INTO claim_assessments (id, claim_id, claim_number, officer_id, officer_name, decision, decision_reason, assigned_at, decided_at, created_at, updated_at, version) VALUES
+INSERT INTO claim_assessments (id, claim_id, claim_number, staff_id, staff_name, decision, decision_reason, assigned_at, decided_at, created_at, updated_at, version) VALUES
     (101, 103, 'CLM-2026-000103', 4, 'Mei Lin Chua', NULL, NULL, '2026-08-30 17:53:44+00:00', NULL, '2026-08-30 17:53:44+00:00', '2026-08-30 17:53:44+00:00', 0),  -- CLM-2026-000103 | Mei Lin Chua | UNDER_REVIEW (in progress)
     (102, 101, 'CLM-2026-000101', 4, 'Mei Lin Chua', NULL, NULL, '2026-08-30 17:57:17+00:00', NULL, '2026-08-30 17:57:17+00:00', '2026-08-30 17:57:17+00:00', 0),  -- CLM-2026-000101 | Mei Lin Chua | UNDER_REVIEW (in progress)
     (103, 102, 'CLM-2026-000102', 2, 'Olivia Bennett', NULL, NULL, '2026-08-31 05:19:59+00:00', NULL, '2026-08-31 05:19:59+00:00', '2026-08-31 05:19:59+00:00', 0),  -- CLM-2026-000102 | Olivia Bennett | MORE_INFO_REQUIRED (in progress)
@@ -153,7 +153,7 @@ INSERT INTO claim_assessments (id, claim_id, claim_number, officer_id, officer_n
     (124, 124, 'CLM-2026-000124', 2, 'Olivia Bennett', NULL, NULL, '2026-09-14 05:16:10+00:00', NULL, '2026-09-14 05:16:10+00:00', '2026-09-14 05:16:10+00:00', 0),  -- CLM-2026-000124 | Olivia Bennett | UNDER_REVIEW (in progress)
     (125, 126, 'CLM-2026-000126', 4, 'Mei Lin Chua', NULL, NULL, '2026-09-14 06:33:23+00:00', NULL, '2026-09-14 06:33:23+00:00', '2026-09-14 06:33:23+00:00', 0);  -- CLM-2026-000126 | Mei Lin Chua | MORE_INFO_REQUIRED (in progress)
 
-INSERT INTO claim_assessments (id, claim_id, claim_number, officer_id, officer_name, decision, decision_reason, assigned_at, decided_at, created_at, updated_at, version) VALUES
+INSERT INTO claim_assessments (id, claim_id, claim_number, staff_id, staff_name, decision, decision_reason, assigned_at, decided_at, created_at, updated_at, version) VALUES
     (126, 123, 'CLM-2026-000123', 4, 'Mei Lin Chua', NULL, NULL, '2026-09-14 09:43:06+00:00', NULL, '2026-09-14 09:43:06+00:00', '2026-09-14 09:43:06+00:00', 0),  -- CLM-2026-000123 | Mei Lin Chua | UNDER_REVIEW (in progress)
     (127, 127, 'CLM-2026-000127', 5, 'Rajesh Kumar', NULL, NULL, '2026-09-16 04:07:31+00:00', NULL, '2026-09-16 04:07:31+00:00', '2026-09-16 04:07:31+00:00', 0),  -- CLM-2026-000127 | Rajesh Kumar | MORE_INFO_REQUIRED (in progress)
     (128, 129, 'CLM-2026-000129', 5, 'Rajesh Kumar', NULL, NULL, '2026-09-17 06:28:40+00:00', NULL, '2026-09-17 06:28:40+00:00', '2026-09-17 06:28:40+00:00', 0),  -- CLM-2026-000129 | Rajesh Kumar | UNDER_REVIEW (in progress)
@@ -181,10 +181,10 @@ INSERT INTO claim_assessments (id, claim_id, claim_number, officer_id, officer_n
     (150, 205, 'CLM-2026-000205', 2, 'Olivia Bennett', NULL, NULL, '2026-10-14 12:50:47+00:00', NULL, '2026-10-14 12:50:47+00:00', '2026-10-14 12:50:47+00:00', 0);  -- CLM-2026-000205 | Olivia Bennett | UNDER_REVIEW (in progress)
 
 -- ---------------------------------------------------------------------------------------------------------------------
--- claim_notes (200): INFO_REQUEST, APPROVAL and REJECTION mirror what the officers told the claimant; GENERAL notes
+-- claim_notes (200): INFO_REQUEST, APPROVAL and REJECTION mirror what the claims staff told the claimant; GENERAL notes
 -- are internal review comments (some are triage notes on claims still waiting in the queue).
 -- ---------------------------------------------------------------------------------------------------------------------
-INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, content, created_at) VALUES
+INSERT INTO claim_notes (id, claim_id, staff_id, staff_name, note_type, content, created_at) VALUES
     (1, 1, 5, 'Rajesh Kumar', 'INFO_REQUEST', 'Please provide the repair estimate from an approved workshop and photographs of all damage.', '2025-11-13 20:30:11+00:00'),  -- CLM-2025-000001 | INFO_REQUEST | Rajesh Kumar
     (2, 1, 5, 'Rajesh Kumar', 'GENERAL', 'Possible duplicate with an earlier claim on the same policy; checked, not a duplicate.', '2025-11-17 06:21:21+00:00'),  -- CLM-2025-000001 | GENERAL | Rajesh Kumar
     (3, 1, 5, 'Rajesh Kumar', 'GENERAL', 'Requested an assessor inspection for next week.', '2025-11-20 12:04:20+00:00'),  -- CLM-2025-000001 | GENERAL | Rajesh Kumar
@@ -211,7 +211,7 @@ INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, cont
     (24, 15, 2, 'Olivia Bennett', 'APPROVAL', 'Loss verified by assessor inspection; approved at the quoted amount.', '2026-02-05 09:52:10+00:00'),  -- CLM-2026-000015 | APPROVAL | Olivia Bennett
     (25, 13, 4, 'Mei Lin Chua', 'APPROVAL', 'Loss verified by assessor inspection; approved at the quoted amount.', '2026-02-06 01:02:53+00:00');  -- CLM-2026-000013 | APPROVAL | Mei Lin Chua
 
-INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, content, created_at) VALUES
+INSERT INTO claim_notes (id, claim_id, staff_id, staff_name, note_type, content, created_at) VALUES
     (26, 17, 2, 'Olivia Bennett', 'GENERAL', 'Cross-checked the repair estimate against the regional parts price list; within 8% of benchmark.', '2026-02-07 07:15:10+00:00'),  -- CLM-2026-000017 | GENERAL | Olivia Bennett
     (27, 14, 6, 'Grace Wong', 'GENERAL', 'Claimant asked for expedited handling as the vehicle is their only transport.', '2026-02-10 02:40:15+00:00'),  -- CLM-2026-000014 | GENERAL | Grace Wong
     (28, 12, 3, 'Kenji Sato', 'REJECTION', 'Supporting documents were not provided within 30 days of the request.', '2026-02-10 06:23:20+00:00'),  -- CLM-2026-000012 | REJECTION | Kenji Sato
@@ -238,7 +238,7 @@ INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, cont
     (49, 33, 5, 'Rajesh Kumar', 'APPROVAL', 'Total loss assessment accepted; settle at the agreed market value.', '2026-03-26 00:08:39+00:00'),  -- CLM-2026-000033 | APPROVAL | Rajesh Kumar
     (50, 32, 2, 'Olivia Bennett', 'GENERAL', 'Fraud screening complete: no flags raised.', '2026-03-26 16:29:18+00:00');  -- CLM-2026-000032 | GENERAL | Olivia Bennett
 
-INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, content, created_at) VALUES
+INSERT INTO claim_notes (id, claim_id, staff_id, staff_name, note_type, content, created_at) VALUES
     (51, 31, 5, 'Rajesh Kumar', 'APPROVAL', 'Damage consistent with the reported incident; estimate within the regional benchmark.', '2026-03-26 20:01:19+00:00'),  -- CLM-2026-000031 | APPROVAL | Rajesh Kumar
     (52, 37, 6, 'Grace Wong', 'GENERAL', 'Claimant asked for expedited handling as the vehicle is their only transport.', '2026-03-27 13:16:47+00:00'),  -- CLM-2026-000037 | GENERAL | Grace Wong
     (53, 36, 3, 'Kenji Sato', 'GENERAL', 'Contents list is higher than average for this property type; asked for receipts.', '2026-03-27 13:26:42+00:00'),  -- CLM-2026-000036 | GENERAL | Kenji Sato
@@ -265,11 +265,11 @@ INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, cont
     (74, 50, 4, 'Mei Lin Chua', 'REJECTION', 'Policy had lapsed before the incident date; premium unpaid.', '2026-05-01 22:49:14+00:00'),  -- CLM-2026-000050 | REJECTION | Mei Lin Chua
     (75, 47, 2, 'Olivia Bennett', 'APPROVAL', 'Policy in force at the date of loss; cover confirmed and excess applied.', '2026-05-04 22:17:47+00:00');  -- CLM-2026-000047 | APPROVAL | Olivia Bennett
 
-INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, content, created_at) VALUES
-    (76, 52, 2, 'Olivia Bennett', 'GENERAL', 'Escalated to a senior officer as the claim value is above my authority limit.', '2026-05-06 15:24:10+00:00'),  -- CLM-2026-000052 | GENERAL | Olivia Bennett
+INSERT INTO claim_notes (id, claim_id, staff_id, staff_name, note_type, content, created_at) VALUES
+    (76, 52, 2, 'Olivia Bennett', 'GENERAL', 'Escalated to a senior staff member as the claim value is above my authority limit.', '2026-05-06 15:24:10+00:00'),  -- CLM-2026-000052 | GENERAL | Olivia Bennett
     (77, 51, 2, 'Olivia Bennett', 'APPROVAL', 'Contents list reconciled with the receipts provided; approved.', '2026-05-07 01:24:30+00:00'),  -- CLM-2026-000051 | APPROVAL | Olivia Bennett
     (78, 52, 2, 'Olivia Bennett', 'APPROVAL', 'Contents list reconciled with the receipts provided; approved.', '2026-05-11 09:54:06+00:00'),  -- CLM-2026-000052 | APPROVAL | Olivia Bennett
-    (79, 56, 2, 'Olivia Bennett', 'GENERAL', 'Escalated to a senior officer as the claim value is above my authority limit.', '2026-05-12 14:12:56+00:00'),  -- CLM-2026-000056 | GENERAL | Olivia Bennett
+    (79, 56, 2, 'Olivia Bennett', 'GENERAL', 'Escalated to a senior staff member as the claim value is above my authority limit.', '2026-05-12 14:12:56+00:00'),  -- CLM-2026-000056 | GENERAL | Olivia Bennett
     (80, 56, 2, 'Olivia Bennett', 'APPROVAL', 'Policy in force at the date of loss; cover confirmed and excess applied.', '2026-05-13 05:55:57+00:00'),  -- CLM-2026-000056 | APPROVAL | Olivia Bennett
     (81, 57, 5, 'Rajesh Kumar', 'GENERAL', 'Salvage value estimated; recovery from the third party is being pursued.', '2026-05-14 19:33:29+00:00'),  -- CLM-2026-000057 | GENERAL | Rajesh Kumar
     (82, 58, 3, 'Kenji Sato', 'GENERAL', 'Awaiting the loss adjuster report before deciding.', '2026-05-15 19:52:28+00:00'),  -- CLM-2026-000058 | GENERAL | Kenji Sato
@@ -292,7 +292,7 @@ INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, cont
     (99, 63, 6, 'Grace Wong', 'GENERAL', 'Third-party insurer contacted; liability apportionment pending.', '2026-06-12 19:42:23+00:00'),  -- CLM-2026-000063 | GENERAL | Grace Wong
     (100, 63, 6, 'Grace Wong', 'APPROVAL', 'Damage consistent with the reported incident; estimate within the regional benchmark.', '2026-06-14 11:15:08+00:00');  -- CLM-2026-000063 | APPROVAL | Grace Wong
 
-INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, content, created_at) VALUES
+INSERT INTO claim_notes (id, claim_id, staff_id, staff_name, note_type, content, created_at) VALUES
     (101, 64, 4, 'Mei Lin Chua', 'APPROVAL', 'Damage consistent with the reported incident; estimate within the regional benchmark.', '2026-06-21 11:56:18+00:00'),  -- CLM-2026-000064 | APPROVAL | Mei Lin Chua
     (102, 66, 3, 'Kenji Sato', 'GENERAL', 'Repair shop confirmed parts are on back-order; delay expected.', '2026-06-28 23:32:19+00:00'),  -- CLM-2026-000066 | GENERAL | Kenji Sato
     (103, 68, 2, 'Olivia Bennett', 'GENERAL', 'Local authority incident report obtained and filed with the claim.', '2026-06-29 02:15:39+00:00'),  -- CLM-2026-000068 | GENERAL | Olivia Bennett
@@ -319,13 +319,13 @@ INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, cont
     (124, 84, 3, 'Kenji Sato', 'GENERAL', 'Cross-checked the repair estimate against the regional parts price list; within 8% of benchmark.', '2026-08-30 23:19:13+00:00'),  -- CLM-2026-000084 | GENERAL | Kenji Sato
     (125, 95, 5, 'Rajesh Kumar', 'INFO_REQUEST', 'Please confirm the odometer reading and provide the vehicle purchase invoice.', '2026-09-01 05:41:48+00:00');  -- CLM-2026-000095 | INFO_REQUEST | Rajesh Kumar
 
-INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, content, created_at) VALUES
+INSERT INTO claim_notes (id, claim_id, staff_id, staff_name, note_type, content, created_at) VALUES
     (126, 87, 2, 'Olivia Bennett', 'GENERAL', 'Requested an assessor inspection for next week.', '2026-09-01 09:15:12+00:00'),  -- CLM-2026-000087 | GENERAL | Olivia Bennett
     (127, 102, 2, 'Olivia Bennett', 'INFO_REQUEST', 'Please provide itemised receipts or valuations for the damaged contents and photographs of the damage.', '2026-09-02 01:33:15+00:00'),  -- CLM-2026-000102 | INFO_REQUEST | Olivia Bennett
     (128, 104, 4, 'Mei Lin Chua', 'GENERAL', 'Awaiting the loss adjuster report before deciding.', '2026-09-02 18:13:57+00:00'),  -- CLM-2026-000104 | GENERAL | Mei Lin Chua
     (129, 90, 6, 'Grace Wong', 'GENERAL', 'Awaiting the loss adjuster report before deciding.', '2026-09-02 23:08:30+00:00'),  -- CLM-2026-000090 | GENERAL | Grace Wong
     (130, 84, 3, 'Kenji Sato', 'GENERAL', 'Awaiting the loss adjuster report before deciding.', '2026-09-03 11:05:52+00:00'),  -- CLM-2026-000084 | GENERAL | Kenji Sato
-    (131, 88, 3, 'Kenji Sato', 'GENERAL', 'Escalated to a senior officer as the claim value is above my authority limit.', '2026-09-04 02:28:37+00:00'),  -- CLM-2026-000088 | GENERAL | Kenji Sato
+    (131, 88, 3, 'Kenji Sato', 'GENERAL', 'Escalated to a senior staff member as the claim value is above my authority limit.', '2026-09-04 02:28:37+00:00'),  -- CLM-2026-000088 | GENERAL | Kenji Sato
     (132, 83, 5, 'Rajesh Kumar', 'GENERAL', 'Requested an assessor inspection for next week.', '2026-09-04 11:36:26+00:00'),  -- CLM-2026-000083 | GENERAL | Rajesh Kumar
     (133, 110, 4, 'Mei Lin Chua', 'INFO_REQUEST', 'Please provide the repair estimate from an approved workshop and photographs of all damage.', '2026-09-05 11:11:02+00:00'),  -- CLM-2026-000110 | INFO_REQUEST | Mei Lin Chua
     (134, 106, 3, 'Kenji Sato', 'GENERAL', 'Possible duplicate with an earlier claim on the same policy; checked, not a duplicate.', '2026-09-06 03:46:23+00:00'),  -- CLM-2026-000106 | GENERAL | Kenji Sato
@@ -346,7 +346,7 @@ INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, cont
     (149, 126, 4, 'Mei Lin Chua', 'INFO_REQUEST', 'Please confirm the odometer reading and provide the vehicle purchase invoice.', '2026-09-16 21:33:21+00:00'),  -- CLM-2026-000126 | INFO_REQUEST | Mei Lin Chua
     (150, 127, 5, 'Rajesh Kumar', 'GENERAL', 'Verified the policy was in force on the date of loss; no premium arrears.', '2026-09-17 09:21:31+00:00');  -- CLM-2026-000127 | GENERAL | Rajesh Kumar
 
-INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, content, created_at) VALUES
+INSERT INTO claim_notes (id, claim_id, staff_id, staff_name, note_type, content, created_at) VALUES
     (151, 128, 4, 'Mei Lin Chua', 'GENERAL', 'Triage: documentation complete and ready for assignment.', '2026-09-18 00:43:31+00:00'),  -- CLM-2026-000128 | GENERAL | Mei Lin Chua
     (152, 118, 2, 'Olivia Bennett', 'APPROVAL', 'Loss verified by assessor inspection; approved at the quoted amount.', '2026-09-18 19:11:24+00:00'),  -- CLM-2026-000118 | APPROVAL | Olivia Bennett
     (153, 127, 5, 'Rajesh Kumar', 'INFO_REQUEST', 'Please provide two repair quotes from licensed contractors.', '2026-09-18 23:10:11+00:00'),  -- CLM-2026-000127 | INFO_REQUEST | Rajesh Kumar
@@ -359,7 +359,7 @@ INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, cont
     (160, 125, 6, 'Grace Wong', 'GENERAL', 'Contents list is higher than average for this property type; asked for receipts.', '2026-09-22 15:16:47+00:00'),  -- CLM-2026-000125 | GENERAL | Grace Wong
     (161, 139, 4, 'Mei Lin Chua', 'GENERAL', 'Claimant asked for expedited handling as the vehicle is their only transport.', '2026-09-23 01:08:02+00:00'),  -- CLM-2026-000139 | GENERAL | Mei Lin Chua
     (162, 99, 5, 'Rajesh Kumar', 'GENERAL', 'Awaiting the loss adjuster report before deciding.', '2026-09-23 12:39:26+00:00'),  -- CLM-2026-000099 | GENERAL | Rajesh Kumar
-    (163, 145, 2, 'Olivia Bennett', 'GENERAL', 'Triage: high-value property loss; suggest assigning to a senior officer.', '2026-09-24 22:30:47+00:00'),  -- CLM-2026-000145 | GENERAL | Olivia Bennett
+    (163, 145, 2, 'Olivia Bennett', 'GENERAL', 'Triage: high-value property loss; suggest assigning to a senior staff member.', '2026-09-24 22:30:47+00:00'),  -- CLM-2026-000145 | GENERAL | Olivia Bennett
     (164, 105, 6, 'Grace Wong', 'GENERAL', 'Repair shop confirmed parts are on back-order; delay expected.', '2026-09-25 20:01:35+00:00'),  -- CLM-2026-000105 | GENERAL | Grace Wong
     (165, 124, 2, 'Olivia Bennett', 'GENERAL', 'Third-party insurer contacted; liability apportionment pending.', '2026-09-26 01:40:30+00:00'),  -- CLM-2026-000124 | GENERAL | Olivia Bennett
     (166, 139, 4, 'Mei Lin Chua', 'INFO_REQUEST', 'Please provide itemised receipts or valuations for the damaged contents and photographs of the damage.', '2026-09-26 04:53:13+00:00'),  -- CLM-2026-000139 | INFO_REQUEST | Mei Lin Chua
@@ -373,7 +373,7 @@ INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, cont
     (174, 129, 5, 'Rajesh Kumar', 'GENERAL', 'Repair shop confirmed parts are on back-order; delay expected.', '2026-10-01 20:23:12+00:00'),  -- CLM-2026-000129 | GENERAL | Rajesh Kumar
     (175, 159, 2, 'Olivia Bennett', 'GENERAL', 'Triage: claimant has two earlier claims on this policy; review history on assignment.', '2026-10-02 11:18:58+00:00');  -- CLM-2026-000159 | GENERAL | Olivia Bennett
 
-INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, content, created_at) VALUES
+INSERT INTO claim_notes (id, claim_id, staff_id, staff_name, note_type, content, created_at) VALUES
     (176, 161, 4, 'Mei Lin Chua', 'GENERAL', 'Repair shop confirmed parts are on back-order; delay expected.', '2026-10-02 18:40:29+00:00'),  -- CLM-2026-000161 | GENERAL | Mei Lin Chua
     (177, 154, 2, 'Olivia Bennett', 'INFO_REQUEST', 'Please provide dashcam footage or witness contact details for the incident.', '2026-10-03 08:21:38+00:00'),  -- CLM-2026-000154 | INFO_REQUEST | Olivia Bennett
     (178, 158, 4, 'Mei Lin Chua', 'INFO_REQUEST', 'Please send the police report reference number and a copy of the driver licence.', '2026-10-03 09:32:58+00:00'),  -- CLM-2026-000158 | INFO_REQUEST | Mei Lin Chua
@@ -385,7 +385,7 @@ INSERT INTO claim_notes (id, claim_id, officer_id, officer_name, note_type, cont
     (184, 125, 6, 'Grace Wong', 'GENERAL', 'Called the claimant to confirm the sequence of events; statement consistent with the report.', '2026-10-06 20:42:53+00:00'),  -- CLM-2026-000125 | GENERAL | Grace Wong
     (185, 173, 6, 'Grace Wong', 'GENERAL', 'Cross-checked the repair estimate against the regional parts price list; within 8% of benchmark.', '2026-10-08 23:17:32+00:00'),  -- CLM-2026-000173 | GENERAL | Grace Wong
     (186, 130, 4, 'Mei Lin Chua', 'GENERAL', 'Awaiting the loss adjuster report before deciding.', '2026-10-09 03:35:27+00:00'),  -- CLM-2026-000130 | GENERAL | Mei Lin Chua
-    (187, 190, 5, 'Rajesh Kumar', 'GENERAL', 'Triage: high-value property loss; suggest assigning to a senior officer.', '2026-10-09 06:51:56+00:00'),  -- CLM-2026-000190 | GENERAL | Rajesh Kumar
+    (187, 190, 5, 'Rajesh Kumar', 'GENERAL', 'Triage: high-value property loss; suggest assigning to a senior staff member.', '2026-10-09 06:51:56+00:00'),  -- CLM-2026-000190 | GENERAL | Rajesh Kumar
     (188, 173, 6, 'Grace Wong', 'INFO_REQUEST', 'Please send the plumber or electrician inspection report confirming the cause of damage.', '2026-10-09 08:04:01+00:00'),  -- CLM-2026-000173 | INFO_REQUEST | Grace Wong
     (189, 143, 5, 'Rajesh Kumar', 'GENERAL', 'Claimant asked for expedited handling as the vehicle is their only transport.', '2026-10-09 12:38:19+00:00'),  -- CLM-2026-000143 | GENERAL | Rajesh Kumar
     (190, 138, 4, 'Mei Lin Chua', 'GENERAL', 'Verified the policy was in force on the date of loss; no premium arrears.', '2026-10-13 20:17:23+00:00'),  -- CLM-2026-000138 | GENERAL | Mei Lin Chua

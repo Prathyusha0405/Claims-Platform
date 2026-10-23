@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Size;
 
 public record AdditionalInfoRequest(
 
-        @Schema(description = "The information the claims officer asked for",
+        @Schema(description = "The information the claims staff asked for",
                 example = "Repair estimate from Ace Auto Works attached under reference EST-8841.")
         @NotBlank
         @Size(max = 2000)

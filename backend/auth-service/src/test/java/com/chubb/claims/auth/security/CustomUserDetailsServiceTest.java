@@ -31,14 +31,14 @@ class CustomUserDetailsServiceTest {
 
     @Test
     void loadsAnAccountByEmailAsSpringSecurityUserDetails() {
-        User user = new User("Jane Tan", "jane@example.com", "$2a$10$hash", Role.OFFICER);
+        User user = new User("Jane Tan", "jane@example.com", "$2a$10$hash", Role.CLAIMS_STAFF);
         when(userService.findByEmail("jane@example.com")).thenReturn(Optional.of(user));
 
         UserDetails details = userDetailsService.loadUserByUsername("jane@example.com");
 
         assertThat(details.getUsername()).isEqualTo("jane@example.com");
         assertThat(details.getPassword()).isEqualTo("$2a$10$hash");
-        assertThat(details.getAuthorities()).extracting(Object::toString).containsExactly("ROLE_OFFICER");
+        assertThat(details.getAuthorities()).extracting(Object::toString).containsExactly("ROLE_CLAIMS_STAFF");
         assertThat(details).isInstanceOf(UserPrincipal.class);
         assertThat(((UserPrincipal) details).user()).isSameAs(user);
     }

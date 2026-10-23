@@ -4,6 +4,8 @@ import com.chubb.claims.claim.dto.ClaimSearchCriteria;
 import com.chubb.claims.claim.entity.Claim;
 import com.chubb.claims.claim.entity.ClaimStatus;
 import com.chubb.claims.claim.entity.ClaimType;
+import com.chubb.claims.claim.entity.Currency;
+import com.chubb.claims.claim.entity.Market;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,9 +45,11 @@ class ClaimSearchRepositoryTest {
         b.transitionTo(ClaimStatus.UNDER_REVIEW, Instant.parse("2026-10-11T08:00:00Z"));
         claimRepository.save(b);
 
-        // C: claimant 2, SUBMITTED, assigned to officer 7, first second of 15 October
+        // C: claimant 2, SUBMITTED, assigned to staff member 7, first second of 15 October
         Claim c = claim("CLM-2026-000003", "POL-AAA-3", 2L, "2026-10-15T00:00:00Z", "300.00");
-        ReflectionTestUtils.setField(c, "assignedOfficerId", 7L);
+        ReflectionTestUtils.setField(c, "assignedStaffId", 7L);
+        ReflectionTestUtils.setField(c, "market", Market.NZ);   // A and B are Singapore (the helper's default)
+        ReflectionTestUtils.setField(c, "currency", Currency.NZD); // the database insists a claim is in its market's currency
         claimRepository.saveAndFlush(c);
     }
 
@@ -76,7 +80,30 @@ class ClaimSearchRepositoryTest {
     }
 
     @Test
-    void assignedOfficerFiltersByOfficerId() {
+    void marketIsAnExactMatch() {
+        assertThat(search(inMarket(Market.SG, null), null)).containsExactly("CLM-2026-000001", "CLM-2026-000002");
+        assertThat(search(inMarket(Market.NZ, null), null)).containsExactly("CLM-2026-000003");
+        assertThat(search(inMarket(Market.JP, null), null)).isEmpty();
+    }
+
+    @Test
+    void marketIsCombinedWithTheOtherFiltersAndWithTheClaimantRestriction() {
+        assertThat(search(inMarket(Market.SG, ClaimStatus.UNDER_REVIEW), null)).containsExactly("CLM-2026-000002");
+        assertThat(search(inMarket(Market.NZ, ClaimStatus.UNDER_REVIEW), null)).isEmpty();
+        assertThat(search(inMarket(Market.SG, null), 1L)).containsExactly("CLM-2026-000001", "CLM-2026-000002");
+        assertThat(search(inMarket(Market.SG, null), 2L)).isEmpty();
+    }
+
+    @Test
+    void claimsCanBeSortedByMarket() {
+        Page<Claim> page = claimRepository.findAll(ClaimSpecifications.matching(criteria(null, null, null, null, null, null), null),
+                PageRequest.of(0, 10, Sort.by(Sort.Direction.ASC, "market", "claimNumber")));
+
+        assertThat(page.getContent()).extracting(Claim::getMarket).containsExactly(Market.NZ, Market.SG, Market.SG);
+    }
+
+    @Test
+    void assignedStaffMemberFiltersByStaffMemberId() {
         assertThat(search(criteria(null, null, null, null, null, 7L), null)).containsExactly("CLM-2026-000003");
         assertThat(search(criteria(null, null, null, null, null, 99L), null)).isEmpty();
     }
@@ -162,8 +189,12 @@ class ClaimSearchRepositoryTest {
     }
 
     private static ClaimSearchCriteria criteria(String claimNumber, String policyNumber, ClaimStatus status,
-                                                LocalDate from, LocalDate to, Long officerId) {
-        return new ClaimSearchCriteria(claimNumber, policyNumber, status, from, to, officerId);
+                                                LocalDate from, LocalDate to, Long staffId) {
+        return new ClaimSearchCriteria(claimNumber, policyNumber, status, null, from, to, staffId);
+    }
+
+    private static ClaimSearchCriteria inMarket(Market market, ClaimStatus status) {
+        return new ClaimSearchCriteria(null, null, status, market, null, null, null);
     }
 
     private static LocalDate date(String iso) {
@@ -172,7 +203,7 @@ class ClaimSearchRepositoryTest {
 
     private static Claim claim(String claimNumber, String policyNumber, Long claimantId, String createdAt, String amount) {
         return new Claim(claimNumber, policyNumber, claimantId, "Claimant " + claimantId, "c" + claimantId + "@example.com",
-                ClaimType.AUTO, LocalDate.of(2026, 9, 30), "Singapore", "Test claim", new BigDecimal(amount),
+                ClaimType.AUTO, Market.SG, LocalDate.of(2026, 9, 30), "Singapore", "Test claim", new BigDecimal(amount),
                 Instant.parse(createdAt));
     }
 }

@@ -33,6 +33,11 @@
             <td mat-cell *matCellDef="let claim">{{ claim.policyNumber }}</td>
           </ng-container>
 
+          <ng-container matColumnDef="market">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Market</th>
+            <td mat-cell *matCellDef="let claim">{{ marketLabel(claim.market) }}</td>
+          </ng-container>
+
           <ng-container matColumnDef="claimType">
             <th mat-header-cell *matHeaderCellDef>Type</th>
             <td mat-cell *matCellDef="let claim">{{ typeLabel(claim.claimType) }}</td>
@@ -46,7 +51,7 @@
           <ng-container matColumnDef="claimAmount">
             <th mat-header-cell *matHeaderCellDef mat-sort-header class="numeric">Amount</th>
             <td mat-cell *matCellDef="let claim" class="numeric">
-              {{ claim.claimAmount | currency: currency : 'symbol' : '1.2-2' }}
+              {{ claim.claimAmount | money: claim.currency }}
             </td>
           </ng-container>
 

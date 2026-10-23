@@ -11,6 +11,8 @@ import com.chubb.claims.claim.dto.PageResponse;
 import com.chubb.claims.claim.entity.ClaimEventType;
 import com.chubb.claims.claim.entity.ClaimStatus;
 import com.chubb.claims.claim.entity.ClaimType;
+import com.chubb.claims.claim.entity.Currency;
+import com.chubb.claims.claim.entity.Market;
 import com.chubb.claims.claim.exception.ClaimNotFoundException;
 import com.chubb.claims.claim.exception.InvalidRequestException;
 import com.chubb.claims.claim.exception.InvalidStatusTransitionException;
@@ -58,11 +60,11 @@ class ClaimControllerTest {
     private static final Instant NOW = Instant.parse("2026-10-22T06:00:00Z");
 
     private static final AuthenticatedUser CLAIMANT = new AuthenticatedUser(5L, "jane@example.com", "Jane Tan", Role.CLAIMANT);
-    private static final AuthenticatedUser OFFICER = new AuthenticatedUser(7L, "officer@chubb.com", "Demo Officer", Role.OFFICER);
-    private static final AuthenticatedUser ADMIN = new AuthenticatedUser(8L, "admin@chubb.com", "Demo Admin", Role.ADMIN);
+    private static final AuthenticatedUser CLAIMS_STAFF = new AuthenticatedUser(7L, "staff@chubb.com", "Demo Claims Staff", Role.CLAIMS_STAFF);
+    private static final AuthenticatedUser MANAGER = new AuthenticatedUser(8L, "manager@chubb.com", "Demo Manager", Role.MANAGER);
 
     private static final String VALID_CLAIM = """
-            {"policyNumber":"POL-2026-12345","claimType":"AUTO","incidentDate":"2026-10-15",
+            {"policyNumber":"POL-2026-12345","claimType":"AUTO","market":"SG","incidentDate":"2026-10-15",
              "incidentLocation":"Orchard Road","description":"Rear-ended at a traffic light","claimAmount":2500.00}""";
 
     @Autowired
@@ -90,7 +92,7 @@ class ClaimControllerTest {
 
         ArgumentCaptor<CreateClaimRequest> request = ArgumentCaptor.forClass(CreateClaimRequest.class);
         verify(claimService).createClaim(request.capture(), eq(CLAIMANT));
-        assertThat(request.getValue()).isEqualTo(new CreateClaimRequest("POL-2026-12345", ClaimType.AUTO,
+        assertThat(request.getValue()).isEqualTo(new CreateClaimRequest("POL-2026-12345", ClaimType.AUTO, Market.SG,
                 LocalDate.of(2026, 10, 15), "Orchard Road", "Rear-ended at a traffic light", new BigDecimal("2500.00")));
     }
 
@@ -103,6 +105,7 @@ class ClaimControllerTest {
                 .andExpect(jsonPath("$.message").value("Validation failed"))
                 .andExpect(jsonPath("$.fieldErrors.policyNumber").exists())
                 .andExpect(jsonPath("$.fieldErrors.claimType").exists())
+                .andExpect(jsonPath("$.fieldErrors.market").exists())
                 .andExpect(jsonPath("$.fieldErrors.incidentDate").exists())
                 .andExpect(jsonPath("$.fieldErrors.description").exists())
                 .andExpect(jsonPath("$.fieldErrors.claimAmount").exists());
@@ -127,6 +130,26 @@ class ClaimControllerTest {
     }
 
     @Test
+    void createRejectsAnUnknownMarket() throws Exception {
+        mockMvc.perform(post("/api/claims").with(as(CLAIMANT)).contentType(MediaType.APPLICATION_JSON)
+                        .content(VALID_CLAIM.replace("\"SG\"", "\"XX\"")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Malformed request body"));
+
+        verifyNoInteractions(claimService);
+    }
+
+    @Test
+    void createReturnsTheMarketOfTheClaim() throws Exception {
+        when(claimService.createClaim(any(CreateClaimRequest.class), eq(CLAIMANT))).thenReturn(detail());
+
+        mockMvc.perform(post("/api/claims").with(as(CLAIMANT)).contentType(MediaType.APPLICATION_JSON).content(VALID_CLAIM))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.market").value("SG"))
+                .andExpect(jsonPath("$.currency").value("SGD"));
+    }
+
+    @Test
     void createRejectsMalformedJson() throws Exception {
         mockMvc.perform(post("/api/claims").with(as(CLAIMANT)).contentType(MediaType.APPLICATION_JSON).content("{nope"))
                 .andExpect(status().isBadRequest());
@@ -144,7 +167,7 @@ class ClaimControllerTest {
 
     @Test
     void onlyClaimantsCanCreateClaims() throws Exception {
-        for (AuthenticatedUser staff : List.of(OFFICER, ADMIN)) {
+        for (AuthenticatedUser staff : List.of(CLAIMS_STAFF, MANAGER)) {
             mockMvc.perform(post("/api/claims").with(as(staff)).contentType(MediaType.APPLICATION_JSON).content(VALID_CLAIM))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.status").value(403));
@@ -211,7 +234,7 @@ class ClaimControllerTest {
 
     @Test
     void myClaimsIsForClaimantsOnly() throws Exception {
-        mockMvc.perform(get("/api/claims/my-claims").with(as(OFFICER))).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/claims/my-claims").with(as(CLAIMS_STAFF))).andExpect(status().isForbidden());
         verifyNoInteractions(claimService);
     }
 
@@ -219,19 +242,19 @@ class ClaimControllerTest {
 
     @Test
     void searchBindsEveryFilterAndPassesThePrincipal() throws Exception {
-        when(claimService.search(any(ClaimSearchCriteria.class), eq(OFFICER), any(Pageable.class))).thenReturn(onePage());
+        when(claimService.search(any(ClaimSearchCriteria.class), eq(CLAIMS_STAFF), any(Pageable.class))).thenReturn(onePage());
 
-        mockMvc.perform(get("/api/claims/search").with(as(OFFICER))
-                        .param("claimNumber", "CLM-2026").param("policyNumber", "POL-1").param("status", "UNDER_REVIEW")
-                        .param("fromDate", "2026-10-01").param("toDate", "2026-10-31").param("assignedOfficerId", "7")
+        mockMvc.perform(get("/api/claims/search").with(as(CLAIMS_STAFF))
+                        .param("claimNumber", "CLM-2026").param("policyNumber", "POL-1").param("status", "UNDER_REVIEW").param("market", "SG")
+                        .param("fromDate", "2026-10-01").param("toDate", "2026-10-31").param("assignedStaffId", "7")
                         .param("page", "1").param("size", "10").param("sort", "status,desc"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].claimNumber").value("CLM-2026-000001"));
 
         ArgumentCaptor<ClaimSearchCriteria> criteria = ArgumentCaptor.forClass(ClaimSearchCriteria.class);
         ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(claimService).search(criteria.capture(), eq(OFFICER), pageable.capture());
-        assertThat(criteria.getValue()).isEqualTo(new ClaimSearchCriteria("CLM-2026", "POL-1", ClaimStatus.UNDER_REVIEW,
+        verify(claimService).search(criteria.capture(), eq(CLAIMS_STAFF), pageable.capture());
+        assertThat(criteria.getValue()).isEqualTo(new ClaimSearchCriteria("CLM-2026", "POL-1", ClaimStatus.UNDER_REVIEW, Market.SG,
                 LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31), 7L));
         assertThat(pageable.getValue().getPageNumber()).isEqualTo(1);
         assertThat(pageable.getValue().getPageSize()).isEqualTo(10);
@@ -246,21 +269,21 @@ class ClaimControllerTest {
 
         ArgumentCaptor<ClaimSearchCriteria> criteria = ArgumentCaptor.forClass(ClaimSearchCriteria.class);
         verify(claimService).search(criteria.capture(), eq(CLAIMANT), any(Pageable.class));
-        assertThat(criteria.getValue()).isEqualTo(new ClaimSearchCriteria(null, null, null, null, null, null));
+        assertThat(criteria.getValue()).isEqualTo(new ClaimSearchCriteria(null, null, null, null, null, null, null));
     }
 
     @Test
-    void searchIsOpenToAdminsAndClaimantsToo() throws Exception {
+    void searchIsOpenToManagersAndClaimantsToo() throws Exception {
         when(claimService.search(any(ClaimSearchCriteria.class), any(AuthenticatedUser.class), any(Pageable.class)))
                 .thenReturn(onePage());
 
-        mockMvc.perform(get("/api/claims/search").with(as(ADMIN))).andExpect(status().isOk());
+        mockMvc.perform(get("/api/claims/search").with(as(MANAGER))).andExpect(status().isOk());
         mockMvc.perform(get("/api/claims/search").with(as(CLAIMANT))).andExpect(status().isOk());
     }
 
     @Test
     void searchRejectsAnUnknownStatusWithAFriendlyMessage() throws Exception {
-        mockMvc.perform(get("/api/claims/search").with(as(OFFICER)).param("status", "BOGUS"))
+        mockMvc.perform(get("/api/claims/search").with(as(CLAIMS_STAFF)).param("status", "BOGUS"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.message").value("Validation failed"))
@@ -271,8 +294,18 @@ class ClaimControllerTest {
     }
 
     @Test
+    void searchRejectsAnUnknownMarketWithAFriendlyMessage() throws Exception {
+        mockMvc.perform(get("/api/claims/search").with(as(CLAIMS_STAFF)).param("market", "XX"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.fieldErrors.market").value("Invalid value 'XX'; allowed values: [AU, HK, JP, MY, NZ, SG]"));
+
+        verifyNoInteractions(claimService);
+    }
+
+    @Test
     void searchRejectsAMalformedDateWithoutLeakingInternalClassNames() throws Exception {
-        mockMvc.perform(get("/api/claims/search").with(as(OFFICER)).param("fromDate", "01/10/2026"))
+        mockMvc.perform(get("/api/claims/search").with(as(CLAIMS_STAFF)).param("fromDate", "01/10/2026"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.fromDate").value("Invalid value '01/10/2026'"));
 
@@ -280,8 +313,8 @@ class ClaimControllerTest {
     }
 
     @Test
-    void searchRejectsANonNumericOfficerIdWith400() throws Exception {
-        mockMvc.perform(get("/api/claims/search").with(as(OFFICER)).param("assignedOfficerId", "abc"))
+    void searchRejectsANonNumericStaffMemberIdWith400() throws Exception {
+        mockMvc.perform(get("/api/claims/search").with(as(CLAIMS_STAFF)).param("assignedStaffId", "abc"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -290,7 +323,7 @@ class ClaimControllerTest {
         when(claimService.search(any(ClaimSearchCriteria.class), any(AuthenticatedUser.class), any(Pageable.class)))
                 .thenThrow(new InvalidRequestException("fromDate must not be after toDate"));
 
-        mockMvc.perform(get("/api/claims/search").with(as(OFFICER)))
+        mockMvc.perform(get("/api/claims/search").with(as(CLAIMS_STAFF)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("fromDate must not be after toDate"));
     }
@@ -300,7 +333,7 @@ class ClaimControllerTest {
         when(claimService.search(any(ClaimSearchCriteria.class), any(AuthenticatedUser.class), any(Pageable.class)))
                 .thenReturn(onePage());
 
-        mockMvc.perform(get("/api/claims/search").with(as(OFFICER))).andExpect(status().isOk());
+        mockMvc.perform(get("/api/claims/search").with(as(CLAIMS_STAFF))).andExpect(status().isOk());
 
         verify(claimService, org.mockito.Mockito.never()).getClaim(any(), any());
     }
@@ -309,9 +342,9 @@ class ClaimControllerTest {
 
     @Test
     void trackingReturnsTheClaimWithItsHistory() throws Exception {
-        when(claimService.getClaim("CLM-2026-000001", OFFICER)).thenReturn(detail());
+        when(claimService.getClaim("CLM-2026-000001", CLAIMS_STAFF)).thenReturn(detail());
 
-        mockMvc.perform(get("/api/claims/CLM-2026-000001").with(as(OFFICER)))
+        mockMvc.perform(get("/api/claims/CLM-2026-000001").with(as(CLAIMS_STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.claimNumber").value("CLM-2026-000001"))
                 .andExpect(jsonPath("$.claimantEmail").value("jane@example.com"))
@@ -396,7 +429,7 @@ class ClaimControllerTest {
 
     @Test
     void additionalInfoIsForClaimantsOnly() throws Exception {
-        mockMvc.perform(post("/api/claims/10/additional-info").with(as(OFFICER)).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/claims/10/additional-info").with(as(CLAIMS_STAFF)).contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"message":"hi"}"""))
                 .andExpect(status().isForbidden());
@@ -452,14 +485,14 @@ class ClaimControllerTest {
     }
 
     private static PageResponse<ClaimSummaryResponse> onePage() {
-        return new PageResponse<>(List.of(new ClaimSummaryResponse(10L, "CLM-2026-000001", "POL-2026-12345", ClaimType.AUTO,
-                ClaimStatus.SUBMITTED, new BigDecimal("2500.00"), LocalDate.of(2026, 10, 15), null, NOW, NOW)),
+        return new PageResponse<>(List.of(new ClaimSummaryResponse(10L, "CLM-2026-000001", "POL-2026-12345", ClaimType.AUTO, Market.SG,
+                ClaimStatus.SUBMITTED, new BigDecimal("2500.00"), Currency.SGD, LocalDate.of(2026, 10, 15), null, NOW, NOW)),
                 0, 20, 1, 1, true, true);
     }
 
     private static ClaimDetailResponse detail() {
         return new ClaimDetailResponse(10L, "CLM-2026-000001", "POL-2026-12345", 5L, "Jane Tan", "jane@example.com",
-                ClaimType.AUTO, ClaimStatus.SUBMITTED, new BigDecimal("2500.00"), LocalDate.of(2026, 10, 15),
+                ClaimType.AUTO, Market.SG, ClaimStatus.SUBMITTED, new BigDecimal("2500.00"), Currency.SGD, LocalDate.of(2026, 10, 15),
                 "Orchard Road", "Rear-ended at a traffic light", null, NOW, NOW,
                 List.of(new ClaimHistoryResponse(ClaimEventType.CLAIM_CREATED, null, ClaimStatus.SUBMITTED, 5L, "CLAIMANT",
                         "Claim submitted", NOW)));

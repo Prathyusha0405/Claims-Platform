@@ -19,7 +19,7 @@ export const CLAIMANT_ROUTES: Routes = [
     title: 'Claim details',
     loadComponent: () => import('./claim-details/claim-details').then((m) => m.ClaimDetails),
   },
-  // One notifications page serves claimants and officers, so it lives in `shared` (features never import each other).
+  // One notifications page serves claimants and claims staff, so it lives in `shared` (features never import each other).
   {
     path: 'notifications',
     title: 'Notifications',

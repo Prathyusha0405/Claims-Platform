@@ -13,8 +13,8 @@ import { NotificationStore } from '@core/services/notification-store';
 const POLL_MS = 60_000;
 
 /**
- * The bell in the toolbar: a link to the inbox with the unread count on it. Only claimants and officers have an
- * inbox (claim-service never notifies admins), so for an admin it renders nothing and asks for nothing.
+ * The bell in the toolbar: a link to the inbox with the unread count on it. Only claimants and claims staff have an
+ * inbox (claim-service never notifies managers), so for a manager it renders nothing and asks for nothing.
  */
 @Component({
   imports: [MatBadgeModule, MatButtonModule, MatIconModule, RouterLink],
@@ -30,8 +30,8 @@ export class NotificationBell {
     switch (this.auth.role()) {
       case 'CLAIMANT':
         return '/claimant/notifications';
-      case 'OFFICER':
-        return '/officer/notifications';
+      case 'CLAIMS_STAFF':
+        return '/staff/notifications';
       default:
         return null;
     }

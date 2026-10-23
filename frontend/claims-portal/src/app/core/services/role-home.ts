@@ -3,15 +3,15 @@ import { Role } from '@core/models/role';
 /** Where each role lands after signing in, and the first page of its area. */
 const ROLE_HOME: Readonly<Record<Role, string>> = {
   CLAIMANT: '/claimant/my-claims',
-  OFFICER: '/officer/work-queue',
-  ADMIN: '/admin/dashboard',
+  CLAIMS_STAFF: '/staff/work-queue',
+  MANAGER: '/manager/dashboard',
 };
 
 /** The URL prefix each role is allowed to open. */
 const ROLE_AREA: Readonly<Record<Role, string>> = {
   CLAIMANT: '/claimant',
-  OFFICER: '/officer',
-  ADMIN: '/admin',
+  CLAIMS_STAFF: '/staff',
+  MANAGER: '/manager',
 };
 
 export const roleHome = (role: Role): string => ROLE_HOME[role];

@@ -48,7 +48,19 @@ app:
     # Must equal auth-service's secret: this service validates the tokens auth-service issues.
     secret: ${JWT_SECRET:chubb-claims-dev-only-secret-key-change-me-0123456789}
   claim-service:
-    # Claim-service owns the claims; every officer action and dashboard figure is fetched from it.
+    # Claim-service owns the claims; every claims staff action and dashboard figure is fetched from it.
     base-url: ${CLAIM_SERVICE_URL:http://localhost:8082}
     connect-timeout: 2s
     read-timeout: 5s
+  dashboard:
+    # Claims are in their own market's currency. The dashboards add them up in this one, using fixed, indicative rates
+    # (units of each currency per 1 unit of the reporting currency). They are not live market rates; keep them in step
+    # with the rates the claim-service seed data was converted at, or the seed's documented USD figures will drift.
+    reporting-currency: USD
+    rates:
+      AUD: 1.50
+      HKD: 7.80
+      JPY: 150
+      MYR: 4.50
+      NZD: 1.65
+      SGD: 1.35

@@ -11,7 +11,7 @@ import jakarta.persistence.Table;
 
 import java.time.Instant;
 
-/** An immutable entry in the officers' internal review trail for a claim. */
+/** An immutable entry in the claims staff's internal review trail for a claim. */
 @Entity
 @Table(name = "claim_notes")
 public class ClaimNote {
@@ -23,11 +23,11 @@ public class ClaimNote {
     @Column(name = "claim_id", nullable = false, updatable = false)
     private Long claimId;
 
-    @Column(name = "officer_id", nullable = false, updatable = false)
-    private Long officerId;
+    @Column(name = "staff_id", nullable = false, updatable = false)
+    private Long staffId;
 
-    @Column(name = "officer_name", updatable = false, length = 100)
-    private String officerName;
+    @Column(name = "staff_name", updatable = false, length = 100)
+    private String staffName;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "note_type", nullable = false, updatable = false, length = 20)
@@ -43,10 +43,10 @@ public class ClaimNote {
         // required by JPA
     }
 
-    public ClaimNote(Long claimId, Long officerId, String officerName, NoteType noteType, String content, Instant createdAt) {
+    public ClaimNote(Long claimId, Long staffId, String staffName, NoteType noteType, String content, Instant createdAt) {
         this.claimId = claimId;
-        this.officerId = officerId;
-        this.officerName = officerName;
+        this.staffId = staffId;
+        this.staffName = staffName;
         this.noteType = noteType;
         this.content = content;
         this.createdAt = createdAt;
@@ -60,12 +60,12 @@ public class ClaimNote {
         return claimId;
     }
 
-    public Long getOfficerId() {
-        return officerId;
+    public Long getStaffId() {
+        return staffId;
     }
 
-    public String getOfficerName() {
-        return officerName;
+    public String getStaffName() {
+        return staffName;
     }
 
     public NoteType getNoteType() {

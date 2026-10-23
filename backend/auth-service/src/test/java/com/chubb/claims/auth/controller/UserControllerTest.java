@@ -44,16 +44,16 @@ class UserControllerTest {
 
     @Test
     void meReturnsTheProfileOfTheAuthenticatedUser() throws Exception {
-        AuthenticatedUser principal = new AuthenticatedUser(7L, "officer@chubb.com", Role.OFFICER);
+        AuthenticatedUser principal = new AuthenticatedUser(7L, "staff@chubb.com", Role.CLAIMS_STAFF);
         when(userService.getCurrentUser(7L))
-                .thenReturn(new UserResponse(7L, "Demo Officer", "officer@chubb.com", Role.OFFICER, Instant.parse("2026-10-22T00:00:00Z")));
+                .thenReturn(new UserResponse(7L, "Demo Claims Staff", "staff@chubb.com", Role.CLAIMS_STAFF, Instant.parse("2026-10-22T00:00:00Z")));
 
         mockMvc.perform(get("/api/users/me").with(authentication(
                         new UsernamePasswordAuthenticationToken(principal, null, principal.authorities()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(7))
-                .andExpect(jsonPath("$.email").value("officer@chubb.com"))
-                .andExpect(jsonPath("$.role").value("OFFICER"));
+                .andExpect(jsonPath("$.email").value("staff@chubb.com"))
+                .andExpect(jsonPath("$.role").value("CLAIMS_STAFF"));
     }
 
     @Test

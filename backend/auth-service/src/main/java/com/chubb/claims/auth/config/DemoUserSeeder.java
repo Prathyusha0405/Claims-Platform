@@ -11,17 +11,17 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * Creates one OFFICER and one ADMIN so staff features can be exercised; public registration only ever creates
+ * Creates one CLAIMS_STAFF and one MANAGER so staff features can be exercised; public registration only ever creates
  * CLAIMANTs. Development only: runs when {@code app.seed.demo-users=true} and is skipped for accounts that exist.
  */
 @Component
 @ConditionalOnProperty(prefix = "app.seed", name = "demo-users", havingValue = "true")
 public class DemoUserSeeder implements ApplicationRunner {
 
-    public static final String OFFICER_EMAIL = "officer@chubb.com";
-    public static final String OFFICER_PASSWORD = "Officer@123";
-    public static final String ADMIN_EMAIL = "admin@chubb.com";
-    public static final String ADMIN_PASSWORD = "Admin@123";
+    public static final String STAFF_EMAIL = "staff@chubb.com";
+    public static final String STAFF_PASSWORD = "Staff@123";
+    public static final String MANAGER_EMAIL = "manager@chubb.com";
+    public static final String MANAGER_PASSWORD = "Manager@123";
 
     private static final Logger log = LoggerFactory.getLogger(DemoUserSeeder.class);
 
@@ -35,8 +35,8 @@ public class DemoUserSeeder implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        seed("Demo Officer", OFFICER_EMAIL, OFFICER_PASSWORD, Role.OFFICER);
-        seed("Demo Admin", ADMIN_EMAIL, ADMIN_PASSWORD, Role.ADMIN);
+        seed("Demo Claims Staff", STAFF_EMAIL, STAFF_PASSWORD, Role.CLAIMS_STAFF);
+        seed("Demo Manager", MANAGER_EMAIL, MANAGER_PASSWORD, Role.MANAGER);
     }
 
     private void seed(String fullName, String email, String password, Role role) {

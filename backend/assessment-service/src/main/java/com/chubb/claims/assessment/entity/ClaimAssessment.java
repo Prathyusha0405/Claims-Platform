@@ -13,7 +13,7 @@ import jakarta.persistence.Version;
 import java.time.Instant;
 
 /**
- * An officer's assessment of one claim: who took it, and (once made) their decision. The claim's own status is owned
+ * A staff member's assessment of one claim: who took it, and (once made) their decision. The claim's own status is owned
  * by claim-service and deliberately not stored here.
  */
 @Entity
@@ -30,12 +30,12 @@ public class ClaimAssessment {
     @Column(name = "claim_number", nullable = false, length = 30)
     private String claimNumber;
 
-    @Column(name = "officer_id", nullable = false)
-    private Long officerId;
+    @Column(name = "staff_id", nullable = false)
+    private Long staffId;
 
-    /** Snapshot from the officer's token; claim-service stores only officer ids. */
-    @Column(name = "officer_name", length = 100)
-    private String officerName;
+    /** Snapshot from the staff member's token; claim-service stores only staff member ids. */
+    @Column(name = "staff_name", length = 100)
+    private String staffName;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
@@ -64,19 +64,19 @@ public class ClaimAssessment {
         // required by JPA
     }
 
-    public ClaimAssessment(Long claimId, String claimNumber, Long officerId, String officerName, Instant assignedAt) {
+    public ClaimAssessment(Long claimId, String claimNumber, Long staffId, String staffName, Instant assignedAt) {
         this.claimId = claimId;
         this.claimNumber = claimNumber;
-        this.officerId = officerId;
-        this.officerName = officerName;
+        this.staffId = staffId;
+        this.staffName = staffName;
         this.assignedAt = assignedAt;
         this.createdAt = assignedAt;
         this.updatedAt = assignedAt;
     }
 
-    public void assignTo(Long officerId, String officerName, Instant now) {
-        this.officerId = officerId;
-        this.officerName = officerName;
+    public void assignTo(Long staffId, String staffName, Instant now) {
+        this.staffId = staffId;
+        this.staffName = staffName;
         this.assignedAt = now;
         this.decision = null;
         this.decisionReason = null;
@@ -103,12 +103,12 @@ public class ClaimAssessment {
         return claimNumber;
     }
 
-    public Long getOfficerId() {
-        return officerId;
+    public Long getStaffId() {
+        return staffId;
     }
 
-    public String getOfficerName() {
-        return officerName;
+    public String getStaffName() {
+        return staffName;
     }
 
     public AssessmentDecision getDecision() {

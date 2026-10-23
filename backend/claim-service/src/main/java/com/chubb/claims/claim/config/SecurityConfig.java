@@ -22,8 +22,8 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
  *   <li>Creating claims, listing "my claims" and answering an information request are CLAIMANT actions.</li>
  *   <li>Viewing and searching claims is open to every role; the service layer narrows claimants to their own claims.</li>
  *   <li>Notifications are open to every role; the service layer only ever shows and changes the caller's own.</li>
- *   <li>{@code /api/internal/**} is for assessment-service acting on behalf of an officer: officers act on claims,
- *       officers and admins read.</li>
+ *   <li>{@code /api/internal/**} is for assessment-service acting on behalf of claims staff: claims staff act on
+ *       claims, managers read.</li>
  * </ul>
  */
 @Configuration
@@ -31,8 +31,8 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 public class SecurityConfig {
 
     private static final String CLAIMANT = "CLAIMANT";
-    private static final String OFFICER = "OFFICER";
-    private static final String ADMIN = "ADMIN";
+    private static final String CLAIMS_STAFF = "CLAIMS_STAFF";
+    private static final String MANAGER = "MANAGER";
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtService jwtService, ObjectMapper objectMapper)
@@ -60,17 +60,17 @@ public class SecurityConfig {
                                 paths.matcher(HttpMethod.POST, "/api/claims/*/additional-info")).hasRole(CLAIMANT)
                         .requestMatchers(
                                 paths.matcher(HttpMethod.GET, "/api/claims/search"),
-                                paths.matcher(HttpMethod.GET, "/api/claims/*")).hasAnyRole(CLAIMANT, OFFICER, ADMIN)
+                                paths.matcher(HttpMethod.GET, "/api/claims/*")).hasAnyRole(CLAIMANT, CLAIMS_STAFF, MANAGER)
                         .requestMatchers(
                                 paths.matcher(HttpMethod.GET, "/api/notifications"),
                                 paths.matcher(HttpMethod.GET, "/api/notifications/unread-count"),
                                 paths.matcher(HttpMethod.POST, "/api/notifications/read-all"),
-                                paths.matcher(HttpMethod.POST, "/api/notifications/*/read")).hasAnyRole(CLAIMANT, OFFICER, ADMIN)
+                                paths.matcher(HttpMethod.POST, "/api/notifications/*/read")).hasAnyRole(CLAIMANT, CLAIMS_STAFF, MANAGER)
                         .requestMatchers(
                                 paths.matcher(HttpMethod.GET, "/api/internal/claims/statistics"),
-                                paths.matcher(HttpMethod.GET, "/api/internal/claims/*")).hasAnyRole(OFFICER, ADMIN)
+                                paths.matcher(HttpMethod.GET, "/api/internal/claims/*")).hasAnyRole(CLAIMS_STAFF, MANAGER)
                         .requestMatchers(
-                                paths.matcher(HttpMethod.POST, "/api/internal/claims/*/*")).hasRole(OFFICER)
+                                paths.matcher(HttpMethod.POST, "/api/internal/claims/*/*")).hasRole(CLAIMS_STAFF)
                         .anyRequest().authenticated())
                 .addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
 

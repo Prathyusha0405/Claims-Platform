@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormControl, FormGroup, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { provideNativeDateAdapter } from '@angular/material/core';
@@ -9,10 +10,17 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterLink } from '@angular/router';
 
-import { environment } from '@env/environment';
 import { ClaimApi } from '@core/services/claim-api';
 import { Notify } from '@core/services/notify';
-import { CLAIM_TYPE_LABELS, CLAIM_TYPES, ClaimType } from '@shared/models/claim';
+import {
+  CLAIM_TYPE_LABELS,
+  CLAIM_TYPES,
+  ClaimType,
+  Market,
+  MARKET_CURRENCY,
+  MARKET_LABELS,
+  MARKETS,
+} from '@shared/models/claim';
 import { startOfToday, toIsoDate } from '@shared/utils/dates';
 import { applyServerErrors, asApiError, fieldError } from '@shared/utils/errors';
 
@@ -57,6 +65,7 @@ export class CreateClaim {
   protected readonly form = new FormGroup({
     policyNumber: new FormControl('', { nonNullable: true, validators: [Validators.required, policyNumberFormat] }),
     claimType: new FormControl<ClaimType | null>(null, { validators: [Validators.required] }),
+    market: new FormControl<Market | null>(null, { validators: [Validators.required] }),
     incidentDate: new FormControl<Date | null>(null, { validators: [Validators.required] }),
     incidentLocation: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(200)] }),
     description: new FormControl('', {
@@ -72,7 +81,16 @@ export class CreateClaim {
 
   protected readonly claimTypes = CLAIM_TYPES;
   protected readonly claimTypeLabels = CLAIM_TYPE_LABELS;
-  protected readonly currency = environment.reportingCurrency;
+  protected readonly markets = MARKETS;
+  protected readonly marketLabels = MARKET_LABELS;
+  private readonly selectedMarket = toSignal(this.form.controls.market.valueChanges, {
+    initialValue: this.form.controls.market.value,
+  });
+  /** The amount is in the currency of the chosen market (the server fills the claim's currency in from the market). */
+  protected readonly currency = computed(() => {
+    const market = this.selectedMarket();
+    return market === null ? null : MARKET_CURRENCY[market];
+  });
   /** An incident cannot be in the future; the backend rejects it too. */
   protected readonly today = startOfToday();
   protected readonly error = (control: AbstractControl | null): string => fieldError(control);
@@ -93,8 +111,9 @@ export class CreateClaim {
     this.api
       .create({
         policyNumber: value.policyNumber.trim(),
-        // The validators above guarantee these three are set.
+        // The validators above guarantee these four are set.
         claimType: value.claimType!,
+        market: value.market!,
         incidentDate: toIsoDate(value.incidentDate!),
         ...(location ? { incidentLocation: location } : {}),
         description: value.description.trim(),

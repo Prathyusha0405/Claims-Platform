@@ -75,8 +75,8 @@ describe('guards', () => {
 
     it.each([
       ['CLAIMANT', '/claimant/my-claims'],
-      ['OFFICER', '/officer/work-queue'],
-      ['ADMIN', '/admin/dashboard'],
+      ['CLAIMS_STAFF', '/staff/work-queue'],
+      ['MANAGER', '/manager/dashboard'],
     ] as const)('sends a signed-in %s to their own home page', (role, home) => {
       signInAs(role);
 
@@ -94,31 +94,31 @@ describe('guards', () => {
     it("ignores a returnUrl into another role's area or another site", () => {
       signInAs('CLAIMANT');
 
-      expect(serialize(run(() => guestGuard(routeWith('/admin/dashboard'), stateAt('/auth/login'))))).toBe('/claimant/my-claims');
+      expect(serialize(run(() => guestGuard(routeWith('/manager/dashboard'), stateAt('/auth/login'))))).toBe('/claimant/my-claims');
       expect(serialize(run(() => guestGuard(routeWith('https://evil.example'), stateAt('/auth/login'))))).toBe('/claimant/my-claims');
     });
   });
 
   describe('roleGuard', () => {
     it('opens the area for its role', () => {
-      signInAs('OFFICER');
+      signInAs('CLAIMS_STAFF');
 
-      expect(match('OFFICER', 'officer', 'work-queue')).toBe(true);
+      expect(match('CLAIMS_STAFF', 'staff', 'work-queue')).toBe(true);
     });
 
     it('opens the area for any of several roles', () => {
-      signInAs('ADMIN');
+      signInAs('MANAGER');
 
-      expect(match(['OFFICER', 'ADMIN'], 'admin', 'dashboard')).toBe(true);
+      expect(match(['CLAIMS_STAFF', 'MANAGER'], 'manager', 'dashboard')).toBe(true);
     });
 
     it.each([
-      ['CLAIMANT', 'OFFICER'],
-      ['CLAIMANT', 'ADMIN'],
-      ['OFFICER', 'ADMIN'],
-      ['OFFICER', 'CLAIMANT'],
-      ['ADMIN', 'OFFICER'],
-      ['ADMIN', 'CLAIMANT'],
+      ['CLAIMANT', 'CLAIMS_STAFF'],
+      ['CLAIMANT', 'MANAGER'],
+      ['CLAIMS_STAFF', 'MANAGER'],
+      ['CLAIMS_STAFF', 'CLAIMANT'],
+      ['MANAGER', 'CLAIMS_STAFF'],
+      ['MANAGER', 'CLAIMANT'],
     ] as const)('sends a signed-in %s who opens the %s area to /forbidden', (signedInAs, area) => {
       signInAs(signedInAs);
 
@@ -129,18 +129,18 @@ describe('guards', () => {
     });
 
     it('sends a visitor to login with the page they asked for, rather than to "not found"', () => {
-      const result = match('OFFICER', 'officer', 'claims', 'CLM-2026-000001');
+      const result = match('CLAIMS_STAFF', 'staff', 'claims', 'CLM-2026-000001');
 
       expect(result).toBeInstanceOf(UrlTree);
-      expect(serialize(result)).toBe('/auth/login?returnUrl=%2Fofficer%2Fclaims%2FCLM-2026-000001');
+      expect(serialize(result)).toBe('/auth/login?returnUrl=%2Fstaff%2Fclaims%2FCLM-2026-000001');
     });
 
     it('treats an expired session as signed out', () => {
       vi.useFakeTimers({ toFake: ['Date'] });
-      signInAs('OFFICER', {}, 3600);
+      signInAs('CLAIMS_STAFF', {}, 3600);
       vi.setSystemTime(Date.now() + 3601 * 1000);
 
-      expect(serialize(match('OFFICER', 'officer', 'work-queue'))).toBe('/auth/login?returnUrl=%2Fofficer%2Fwork-queue');
+      expect(serialize(match('CLAIMS_STAFF', 'staff', 'work-queue'))).toBe('/auth/login?returnUrl=%2Fstaff%2Fwork-queue');
       expect(store.isAuthenticated()).toBe(false);
     });
   });

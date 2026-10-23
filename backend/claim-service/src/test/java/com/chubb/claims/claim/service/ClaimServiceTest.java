@@ -10,6 +10,8 @@ import com.chubb.claims.claim.entity.Claim;
 import com.chubb.claims.claim.entity.ClaimEventType;
 import com.chubb.claims.claim.entity.ClaimStatus;
 import com.chubb.claims.claim.entity.ClaimType;
+import com.chubb.claims.claim.entity.Currency;
+import com.chubb.claims.claim.entity.Market;
 import com.chubb.claims.claim.event.ClaimEvent;
 import com.chubb.claims.claim.event.ClaimEventPublisher;
 import com.chubb.claims.claim.exception.ClaimNotFoundException;
@@ -58,7 +60,7 @@ class ClaimServiceTest {
 
     private static final AuthenticatedUser JANE = new AuthenticatedUser(5L, "jane@example.com", "Jane Tan", Role.CLAIMANT);
     private static final AuthenticatedUser OTHER_CLAIMANT = new AuthenticatedUser(6L, "bob@example.com", "Bob Lim", Role.CLAIMANT);
-    private static final AuthenticatedUser OFFICER = new AuthenticatedUser(7L, "officer@chubb.com", "Demo Officer", Role.OFFICER);
+    private static final AuthenticatedUser CLAIMS_STAFF = new AuthenticatedUser(7L, "staff@chubb.com", "Demo Claims Staff", Role.CLAIMS_STAFF);
 
     @Mock
     private ClaimRepository claimRepository;
@@ -91,7 +93,7 @@ class ClaimServiceTest {
         });
 
         ClaimDetailResponse response = claimService.createClaim(new CreateClaimRequest(
-                " pol-2026-1 ", ClaimType.AUTO, LocalDate.of(2026, 10, 15), "  Orchard Road ", "  Rear-ended  ",
+                " pol-2026-1 ", ClaimType.AUTO, Market.SG, LocalDate.of(2026, 10, 15), "  Orchard Road ", "  Rear-ended  ",
                 new BigDecimal("2500.00")), JANE);
 
         ArgumentCaptor<Claim> saved = ArgumentCaptor.forClass(Claim.class);
@@ -102,14 +104,18 @@ class ClaimServiceTest {
         assertThat(claim.getClaimantId()).isEqualTo(5L);
         assertThat(claim.getClaimantName()).isEqualTo("Jane Tan");
         assertThat(claim.getClaimantEmail()).isEqualTo("jane@example.com");
+        assertThat(claim.getMarket()).isEqualTo(Market.SG);
+        assertThat(claim.getCurrency()).isEqualTo(Currency.SGD);
         assertThat(claim.getIncidentLocation()).isEqualTo("Orchard Road");
         assertThat(claim.getDescription()).isEqualTo("Rear-ended");
         assertThat(claim.getStatus()).isEqualTo(ClaimStatus.SUBMITTED);
         assertThat(claim.getCreatedAt()).isEqualTo(NOW);
-        assertThat(claim.getAssignedOfficerId()).isNull();
+        assertThat(claim.getAssignedStaffId()).isNull();
 
         assertThat(response.claimNumber()).isEqualTo("CLM-2026-000001");
         assertThat(response.status()).isEqualTo(ClaimStatus.SUBMITTED);
+        assertThat(response.market()).isEqualTo(Market.SG);
+        assertThat(response.currency()).isEqualTo(Currency.SGD);
 
         ArgumentCaptor<ClaimEvent> event = ArgumentCaptor.forClass(ClaimEvent.class);
         verify(eventPublisher).publish(event.capture());
@@ -118,11 +124,28 @@ class ClaimServiceTest {
     }
 
     @Test
+    void aClaimIsAlwaysInTheCurrencyOfItsMarket() {
+        when(claimNumberGenerator.next()).thenReturn("CLM-2026-000009");
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> {
+            Claim saved = invocation.getArgument(0);
+            ReflectionTestUtils.setField(saved, "id", 10L);
+            return saved;
+        });
+
+        for (Market market : Market.values()) {
+            ClaimDetailResponse response = claimService.createClaim(new CreateClaimRequest("POL-1234", ClaimType.AUTO, market,
+                    LocalDate.of(2026, 10, 1), null, "desc", new BigDecimal("10.00")), JANE);
+
+            assertThat(response.currency()).as("currency of a claim filed in %s", market).isEqualTo(market.currency());
+        }
+    }
+
+    @Test
     void createClaimStoresBlankLocationAsNull() {
         when(claimNumberGenerator.next()).thenReturn("CLM-2026-000002");
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        claimService.createClaim(new CreateClaimRequest("POL-1234", ClaimType.HOME, LocalDate.of(2026, 10, 1), "   ",
+        claimService.createClaim(new CreateClaimRequest("POL-1234", ClaimType.HOME, Market.SG, LocalDate.of(2026, 10, 1), "   ",
                 "Burst pipe", new BigDecimal("10.00")), JANE);
 
         ArgumentCaptor<Claim> saved = ArgumentCaptor.forClass(Claim.class);
@@ -132,7 +155,7 @@ class ClaimServiceTest {
 
     @Test
     void createClaimRejectsAnIncidentDateInTheFuture() {
-        CreateClaimRequest request = new CreateClaimRequest("POL-1234", ClaimType.AUTO, LocalDate.of(2026, 10, 24), null,
+        CreateClaimRequest request = new CreateClaimRequest("POL-1234", ClaimType.AUTO, Market.SG, LocalDate.of(2026, 10, 24), null,
                 "desc", new BigDecimal("10.00"));
 
         assertThatThrownBy(() -> claimService.createClaim(request, JANE))
@@ -148,7 +171,7 @@ class ClaimServiceTest {
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // "today" is 2026-10-22 in UTC; a claimant in Sydney can already be on the 23rd.
-        claimService.createClaim(new CreateClaimRequest("POL-1234", ClaimType.TRAVEL, LocalDate.of(2026, 10, 23), null,
+        claimService.createClaim(new CreateClaimRequest("POL-1234", ClaimType.TRAVEL, Market.SG, LocalDate.of(2026, 10, 23), null,
                 "desc", new BigDecimal("10.00")), JANE);
 
         verify(claimRepository).save(any(Claim.class));
@@ -183,17 +206,17 @@ class ClaimServiceTest {
     }
 
     @Test
-    void getClaimLetsOfficersOpenAnyClaim() {
+    void getClaimLetsClaimsStaffOpenAnyClaim() {
         when(claimRepository.findByClaimNumber("CLM-2026-000001")).thenReturn(Optional.of(claim(10L, "CLM-2026-000001", 5L)));
 
-        assertThat(claimService.getClaim("CLM-2026-000001", OFFICER).claimantId()).isEqualTo(5L);
+        assertThat(claimService.getClaim("CLM-2026-000001", CLAIMS_STAFF).claimantId()).isEqualTo(5L);
     }
 
     @Test
     void getClaimThrowsWhenTheClaimDoesNotExist() {
         when(claimRepository.findByClaimNumber("CLM-2026-999999")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> claimService.getClaim("CLM-2026-999999", OFFICER))
+        assertThatThrownBy(() -> claimService.getClaim("CLM-2026-999999", CLAIMS_STAFF))
                 .isInstanceOf(ClaimNotFoundException.class)
                 .hasMessageContaining("CLM-2026-999999");
     }
@@ -248,10 +271,10 @@ class ClaimServiceTest {
 
     @Test
     void searchRejectsAnInvertedDateRange() {
-        ClaimSearchCriteria inverted = new ClaimSearchCriteria(null, null, null,
+        ClaimSearchCriteria inverted = new ClaimSearchCriteria(null, null, null, null,
                 LocalDate.of(2026, 10, 31), LocalDate.of(2026, 10, 1), null);
 
-        assertThatThrownBy(() -> claimService.search(inverted, OFFICER, PageRequest.of(0, 20)))
+        assertThatThrownBy(() -> claimService.search(inverted, CLAIMS_STAFF, PageRequest.of(0, 20)))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessageContaining("fromDate");
 
@@ -260,9 +283,9 @@ class ClaimServiceTest {
 
     @Test
     void searchValidatesSortFieldsToo() {
-        ClaimSearchCriteria none = new ClaimSearchCriteria(null, null, null, null, null, null);
+        ClaimSearchCriteria none = new ClaimSearchCriteria(null, null, null, null, null, null, null);
 
-        assertThatThrownBy(() -> claimService.search(none, OFFICER, PageRequest.of(0, 20, Sort.by("version"))))
+        assertThatThrownBy(() -> claimService.search(none, CLAIMS_STAFF, PageRequest.of(0, 20, Sort.by("version"))))
                 .isInstanceOf(InvalidRequestException.class);
     }
 
@@ -273,7 +296,7 @@ class ClaimServiceTest {
                 .thenReturn(new PageImpl<>(List.of(claim), PageRequest.of(0, 20), 1));
 
         PageResponse<ClaimSummaryResponse> page = claimService.search(
-                new ClaimSearchCriteria("CLM", null, ClaimStatus.SUBMITTED, null, null, null), OFFICER, PageRequest.of(0, 20));
+                new ClaimSearchCriteria("CLM", null, ClaimStatus.SUBMITTED, null, null, null, null), CLAIMS_STAFF, PageRequest.of(0, 20));
 
         assertThat(page.content()).hasSize(1);
         assertThat(page.content().get(0).status()).isEqualTo(ClaimStatus.SUBMITTED);
@@ -345,7 +368,7 @@ class ClaimServiceTest {
     }
 
     private static Claim claim(Long id, String claimNumber, Long claimantId) {
-        Claim claim = new Claim(claimNumber, "POL-2026-1", claimantId, "Jane Tan", "jane@example.com", ClaimType.AUTO,
+        Claim claim = new Claim(claimNumber, "POL-2026-1", claimantId, "Jane Tan", "jane@example.com", ClaimType.AUTO, Market.SG,
                 LocalDate.of(2026, 10, 1), "Orchard Road", "Rear-ended", new BigDecimal("2500.00"), NOW.minusSeconds(120));
         ReflectionTestUtils.setField(claim, "id", id);
         return claim;

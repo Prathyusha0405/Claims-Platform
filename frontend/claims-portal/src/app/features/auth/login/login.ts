@@ -14,8 +14,8 @@ import { asApiError, fieldError } from '@shared/utils/errors';
 /** The accounts the backend seeds for demos. Shown as quick-fill buttons in development builds only. */
 const DEMO_ACCOUNTS = [
   { label: 'Claimant', email: 'weiling.tan@example.com', password: 'Claimant@123' },
-  { label: 'Officer', email: 'officer@chubb.com', password: 'Officer@123' },
-  { label: 'Admin', email: 'admin@chubb.com', password: 'Admin@123' },
+  { label: 'Claims staff', email: 'staff@chubb.com', password: 'Staff@123' },
+  { label: 'Manager', email: 'manager@chubb.com', password: 'Manager@123' },
 ] as const;
 
 type DemoAccount = (typeof DEMO_ACCOUNTS)[number];

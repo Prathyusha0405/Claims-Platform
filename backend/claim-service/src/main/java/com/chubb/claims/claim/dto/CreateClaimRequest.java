@@ -1,6 +1,7 @@
 package com.chubb.claims.claim.dto;
 
 import com.chubb.claims.claim.entity.ClaimType;
+import com.chubb.claims.claim.entity.Market;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
@@ -23,6 +24,10 @@ public record CreateClaimRequest(
         @Schema(example = "AUTO")
         @NotNull
         ClaimType claimType,
+
+        @Schema(description = "Market the claim is filed in, by ISO country code: AU, HK, JP, MY, NZ or SG", example = "SG")
+        @NotNull
+        Market market,
 
         @Schema(description = "Date the incident happened (not in the future)", example = "2026-10-15")
         @NotNull

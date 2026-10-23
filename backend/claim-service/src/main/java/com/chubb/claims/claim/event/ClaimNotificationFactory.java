@@ -16,10 +16,10 @@ final class ClaimNotificationFactory {
         List<Notification> notifications = new ArrayList<>();
         notifications.add(toClaimant(event, claimantMessage(event)));
 
-        // The officer working the claim needs to know the claimant has answered their request.
-        if (event.type() == ClaimEventType.ADDITIONAL_INFO_RECEIVED && event.assignedOfficerId() != null) {
+        // The staff member working the claim needs to know the claimant has answered their request.
+        if (event.type() == ClaimEventType.ADDITIONAL_INFO_RECEIVED && event.assignedStaffId() != null) {
             notifications.add(new Notification(
-                    event.assignedOfficerId(),
+                    event.assignedStaffId(),
                     event.claimId(),
                     event.type(),
                     "The claimant has provided additional information for claim " + event.claimNumber() + ".",
@@ -36,7 +36,7 @@ final class ClaimNotificationFactory {
         String claim = event.claimNumber();
         return switch (event.type()) {
             case CLAIM_CREATED -> "Your claim " + claim + " has been submitted successfully.";
-            case CLAIM_ASSIGNED -> "Your claim " + claim + " has been assigned to a claims officer and is under review.";
+            case CLAIM_ASSIGNED -> "Your claim " + claim + " has been assigned to a claims staff member and is under review.";
             case CLAIM_APPROVED -> "Your claim " + claim + " has been approved.";
             case CLAIM_REJECTED -> "Your claim " + claim + " has been rejected.";
             case ADDITIONAL_INFO_REQUESTED ->

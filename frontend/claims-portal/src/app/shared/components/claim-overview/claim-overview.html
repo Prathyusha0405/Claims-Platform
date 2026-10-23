@@ -8,8 +8,12 @@
     <dd>{{ typeLabels[claim().claimType] }}</dd>
   </div>
   <div class="fact">
+    <dt>Market</dt>
+    <dd>{{ marketLabels[claim().market] }}</dd>
+  </div>
+  <div class="fact">
     <dt>Amount claimed</dt>
-    <dd>{{ claim().claimAmount | currency: currency : 'symbol' : '1.2-2' }}</dd>
+    <dd>{{ claim().claimAmount | money: claim().currency }}</dd>
   </div>
   <div class="fact">
     <dt>Incident date</dt>
@@ -36,8 +40,8 @@
       </dd>
     </div>
     <div class="fact">
-      <dt>Assigned officer</dt>
-      <dd>{{ claim().assignedOfficerId === null ? 'Nobody yet' : 'Officer #' + claim().assignedOfficerId }}</dd>
+      <dt>Assigned to</dt>
+      <dd>{{ claim().assignedStaffId === null ? 'Nobody yet' : 'Staff #' + claim().assignedStaffId }}</dd>
     </div>
   }
 </dl>

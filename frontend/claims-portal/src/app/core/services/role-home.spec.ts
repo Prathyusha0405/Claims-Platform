@@ -3,31 +3,31 @@ import { resolveReturnUrl, roleHome } from './role-home';
 describe('roleHome', () => {
   it('lands each role on the first page of its own area', () => {
     expect(roleHome('CLAIMANT')).toBe('/claimant/my-claims');
-    expect(roleHome('OFFICER')).toBe('/officer/work-queue');
-    expect(roleHome('ADMIN')).toBe('/admin/dashboard');
+    expect(roleHome('CLAIMS_STAFF')).toBe('/staff/work-queue');
+    expect(roleHome('MANAGER')).toBe('/manager/dashboard');
   });
 });
 
 describe('resolveReturnUrl', () => {
   it('goes back to the requested page when it is inside the role\'s own area', () => {
     expect(resolveReturnUrl('/claimant/claims/CLM-2026-000042', 'CLAIMANT')).toBe('/claimant/claims/CLM-2026-000042');
-    expect(resolveReturnUrl('/officer/work-queue?page=2&sort=claimAmount,desc', 'OFFICER')).toBe(
-      '/officer/work-queue?page=2&sort=claimAmount,desc',
+    expect(resolveReturnUrl('/staff/work-queue?page=2&sort=claimAmount,desc', 'CLAIMS_STAFF')).toBe(
+      '/staff/work-queue?page=2&sort=claimAmount,desc',
     );
-    expect(resolveReturnUrl('/admin/dashboard#liability', 'ADMIN')).toBe('/admin/dashboard#liability');
+    expect(resolveReturnUrl('/manager/dashboard#liability', 'MANAGER')).toBe('/manager/dashboard#liability');
     expect(resolveReturnUrl('/claimant', 'CLAIMANT')).toBe('/claimant');
   });
 
   it('falls back to the role home when there is nothing to return to', () => {
-    expect(resolveReturnUrl(null, 'OFFICER')).toBe('/officer/work-queue');
-    expect(resolveReturnUrl(undefined, 'OFFICER')).toBe('/officer/work-queue');
-    expect(resolveReturnUrl('', 'OFFICER')).toBe('/officer/work-queue');
+    expect(resolveReturnUrl(null, 'CLAIMS_STAFF')).toBe('/staff/work-queue');
+    expect(resolveReturnUrl(undefined, 'CLAIMS_STAFF')).toBe('/staff/work-queue');
+    expect(resolveReturnUrl('', 'CLAIMS_STAFF')).toBe('/staff/work-queue');
   });
 
   it("does not follow a link into another role's area", () => {
-    expect(resolveReturnUrl('/officer/work-queue', 'CLAIMANT')).toBe('/claimant/my-claims');
-    expect(resolveReturnUrl('/admin/dashboard', 'OFFICER')).toBe('/officer/work-queue');
-    expect(resolveReturnUrl('/claimant/my-claims', 'ADMIN')).toBe('/admin/dashboard');
+    expect(resolveReturnUrl('/staff/work-queue', 'CLAIMANT')).toBe('/claimant/my-claims');
+    expect(resolveReturnUrl('/manager/dashboard', 'CLAIMS_STAFF')).toBe('/staff/work-queue');
+    expect(resolveReturnUrl('/claimant/my-claims', 'MANAGER')).toBe('/manager/dashboard');
   });
 
   it('does not treat a longer area name as the area', () => {

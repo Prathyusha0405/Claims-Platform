@@ -66,10 +66,10 @@ describe('routing through the real router', () => {
       '/claimant/claims/new',
       '/claimant/claims/CLM-2026-000001',
       '/claimant/notifications',
-      '/officer/work-queue',
-      '/officer/claims/CLM-2026-000001',
-      '/officer/notifications',
-      '/admin/dashboard',
+      '/staff/work-queue',
+      '/staff/claims/CLM-2026-000001',
+      '/staff/notifications',
+      '/manager/dashboard',
       '/forbidden',
     ])('is sent from %s to login, which will bring them back', async (url) => {
       const page = await open(url);
@@ -95,9 +95,9 @@ describe('routing through the real router', () => {
   });
 
   describe.each([
-    ['CLAIMANT', '/claimant/my-claims', 'My claims', ['/officer/work-queue', '/admin/dashboard']],
-    ['OFFICER', '/officer/work-queue', 'Work queue', ['/claimant/my-claims', '/admin/dashboard']],
-    ['ADMIN', '/admin/dashboard', 'Dashboard', ['/claimant/my-claims', '/officer/work-queue']],
+    ['CLAIMANT', '/claimant/my-claims', 'My claims', ['/staff/work-queue', '/manager/dashboard']],
+    ['CLAIMS_STAFF', '/staff/work-queue', 'Work queue', ['/claimant/my-claims', '/manager/dashboard']],
+    ['MANAGER', '/manager/dashboard', 'Dashboard', ['/claimant/my-claims', '/staff/work-queue']],
   ] as [Role, string, string, string[]][])('a signed-in %s', (role, home, homeHeading, otherAreas) => {
     beforeEach(() => signInAs(role));
 
@@ -160,14 +160,28 @@ describe('routing through the real router', () => {
     it("ignores a login link that asks for another role's page or another site", async () => {
       signInAs('CLAIMANT');
 
-      expect((await open('/auth/login?returnUrl=/admin/dashboard')).url).toBe('/claimant/my-claims');
+      expect((await open('/auth/login?returnUrl=/manager/dashboard')).url).toBe('/claimant/my-claims');
       expect((await open('/auth/login?returnUrl=https://evil.example')).url).toBe('/claimant/my-claims');
     });
 
     it('opens the area root on its first page', async () => {
-      signInAs('OFFICER');
+      signInAs('CLAIMS_STAFF');
 
-      expect((await open('/officer')).url).toBe('/officer/work-queue');
+      expect((await open('/staff')).url).toBe('/staff/work-queue');
+    });
+
+    it.each([
+      ['CLAIMS_STAFF', '/officer/work-queue'],
+      ['CLAIMS_STAFF', '/officer'],
+      ['MANAGER', '/admin/dashboard'],
+      ['MANAGER', '/admin'],
+    ] as [Role, string][])('finds nothing at the URLs the roles had before the rename (%s at %s)', async (role, oldUrl) => {
+      signInAs(role);
+
+      const page = await open(oldUrl);
+
+      expect(page.text).toContain('Page not found');
+      expect(page.url).toBe(oldUrl);
     });
 
     it('is treated as signed out once the session has expired', async () => {

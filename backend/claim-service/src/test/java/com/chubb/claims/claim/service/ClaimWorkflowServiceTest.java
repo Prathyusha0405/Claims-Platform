@@ -3,7 +3,7 @@ package com.chubb.claims.claim.service;
 import com.chubb.claims.claim.dto.ApproveClaimRequest;
 import com.chubb.claims.claim.dto.ClaimStatisticsResponse;
 import com.chubb.claims.claim.dto.ClaimSummaryResponse;
-import com.chubb.claims.claim.dto.OfficerStatusTotal;
+import com.chubb.claims.claim.dto.StaffStatusTotal;
 import com.chubb.claims.claim.dto.RejectClaimRequest;
 import com.chubb.claims.claim.dto.RequestInfoRequest;
 import com.chubb.claims.claim.dto.StatusTotal;
@@ -11,11 +11,13 @@ import com.chubb.claims.claim.entity.Claim;
 import com.chubb.claims.claim.entity.ClaimEventType;
 import com.chubb.claims.claim.entity.ClaimStatus;
 import com.chubb.claims.claim.entity.ClaimType;
+import com.chubb.claims.claim.entity.Currency;
+import com.chubb.claims.claim.entity.Market;
 import com.chubb.claims.claim.event.ClaimEvent;
 import com.chubb.claims.claim.event.ClaimEventPublisher;
 import com.chubb.claims.claim.exception.ClaimNotFoundException;
 import com.chubb.claims.claim.exception.InvalidStatusTransitionException;
-import com.chubb.claims.claim.exception.NotAssignedOfficerException;
+import com.chubb.claims.claim.exception.NotAssignedStaffException;
 import com.chubb.claims.claim.repository.ClaimHistoryRepository;
 import com.chubb.claims.claim.repository.ClaimRepository;
 import com.chubb.claims.claim.security.AuthenticatedUser;
@@ -46,13 +48,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** The officer actions assessment-service drives: assign, approve, reject, request-info, plus statistics. */
+/** The staff member actions assessment-service drives: assign, approve, reject, request-info, plus statistics. */
 @ExtendWith(MockitoExtension.class)
 class ClaimWorkflowServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-10-22T06:00:00Z");
-    private static final AuthenticatedUser OFFICER = new AuthenticatedUser(7L, "officer@chubb.com", "Demo Officer", Role.OFFICER);
-    private static final AuthenticatedUser OTHER_OFFICER = new AuthenticatedUser(8L, "other@chubb.com", "Other Officer", Role.OFFICER);
+    private static final AuthenticatedUser CLAIMS_STAFF = new AuthenticatedUser(7L, "staff@chubb.com", "Demo Claims Staff", Role.CLAIMS_STAFF);
+    private static final AuthenticatedUser OTHER_STAFF = new AuthenticatedUser(8L, "other@chubb.com", "Other Staff", Role.CLAIMS_STAFF);
 
     @Mock
     private ClaimRepository claimRepository;
@@ -77,20 +79,20 @@ class ClaimWorkflowServiceTest {
     // ---- assign -----------------------------------------------------------------------------------------------
 
     @Test
-    void assignMovesASubmittedClaimUnderReviewForTheOfficerAndPublishesClaimAssigned() {
+    void assignMovesASubmittedClaimUnderReviewForTheStaffMemberAndPublishesClaimAssigned() {
         Claim claim = submittedClaim(10L);
         when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
-        ClaimSummaryResponse response = claimService.assignToOfficer(10L, OFFICER);
+        ClaimSummaryResponse response = claimService.assignToStaff(10L, CLAIMS_STAFF);
 
         assertThat(response.status()).isEqualTo(ClaimStatus.UNDER_REVIEW);
-        assertThat(response.assignedOfficerId()).isEqualTo(7L);
+        assertThat(response.assignedStaffId()).isEqualTo(7L);
         assertThat(claim.getUpdatedAt()).isEqualTo(NOW);
         verify(claimRepository).save(claim);
 
         ClaimEvent event = publishedEvent();
         assertThat(event).isEqualTo(new ClaimEvent(ClaimEventType.CLAIM_ASSIGNED, 10L, "CLM-2026-000010", 5L, 7L,
-                ClaimStatus.SUBMITTED, ClaimStatus.UNDER_REVIEW, 7L, "OFFICER", "Assigned to Demo Officer", NOW));
+                ClaimStatus.SUBMITTED, ClaimStatus.UNDER_REVIEW, 7L, "CLAIMS_STAFF", "Assigned to Demo Claims Staff", NOW));
     }
 
     @Test
@@ -98,11 +100,11 @@ class ClaimWorkflowServiceTest {
         Claim claim = assignedClaim(10L, 8L);
         when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
-        assertThatThrownBy(() -> claimService.assignToOfficer(10L, OFFICER))
+        assertThatThrownBy(() -> claimService.assignToStaff(10L, CLAIMS_STAFF))
                 .isInstanceOf(InvalidStatusTransitionException.class)
                 .hasMessageContaining("Only a SUBMITTED claim can be assigned");
 
-        assertThat(claim.getAssignedOfficerId()).isEqualTo(8L);
+        assertThat(claim.getAssignedStaffId()).isEqualTo(8L);
         verifyNoInteractions(eventPublisher);
     }
 
@@ -113,18 +115,18 @@ class ClaimWorkflowServiceTest {
         ReflectionTestUtils.setField(claim, "status", status);
         when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
-        assertThatThrownBy(() -> claimService.assignToOfficer(10L, OFFICER))
+        assertThatThrownBy(() -> claimService.assignToStaff(10L, CLAIMS_STAFF))
                 .isInstanceOf(InvalidStatusTransitionException.class);
 
         assertThat(claim.getStatus()).isEqualTo(status);
-        assertThat(claim.getAssignedOfficerId()).isNull();
+        assertThat(claim.getAssignedStaffId()).isNull();
     }
 
     @Test
     void assignOfAnUnknownClaimIsNotFound() {
         when(claimRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> claimService.assignToOfficer(99L, OFFICER)).isInstanceOf(ClaimNotFoundException.class);
+        assertThatThrownBy(() -> claimService.assignToStaff(99L, CLAIMS_STAFF)).isInstanceOf(ClaimNotFoundException.class);
     }
 
     // ---- approve / reject / request-info ----------------------------------------------------------------------
@@ -134,7 +136,7 @@ class ClaimWorkflowServiceTest {
         Claim claim = assignedClaim(10L, 7L);
         when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
-        ClaimSummaryResponse response = claimService.approve(10L, new ApproveClaimRequest("  Damage confirmed  "), OFFICER);
+        ClaimSummaryResponse response = claimService.approve(10L, new ApproveClaimRequest("  Damage confirmed  "), CLAIMS_STAFF);
 
         assertThat(response.status()).isEqualTo(ClaimStatus.APPROVED);
         ClaimEvent event = publishedEvent();
@@ -150,7 +152,7 @@ class ClaimWorkflowServiceTest {
         Claim claim = assignedClaim(10L, 7L);
         when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
-        claimService.approve(10L, null, OFFICER);
+        claimService.approve(10L, null, CLAIMS_STAFF);
 
         assertThat(publishedEvent().details()).isEqualTo("Claim approved");
     }
@@ -160,7 +162,7 @@ class ClaimWorkflowServiceTest {
         Claim claim = assignedClaim(10L, 7L);
         when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
-        claimService.approve(10L, new ApproveClaimRequest("   "), OFFICER);
+        claimService.approve(10L, new ApproveClaimRequest("   "), CLAIMS_STAFF);
 
         assertThat(publishedEvent().details()).isEqualTo("Claim approved");
     }
@@ -170,7 +172,7 @@ class ClaimWorkflowServiceTest {
         Claim claim = assignedClaim(10L, 7L);
         when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
-        ClaimSummaryResponse response = claimService.reject(10L, new RejectClaimRequest("  Policy had lapsed  "), OFFICER);
+        ClaimSummaryResponse response = claimService.reject(10L, new RejectClaimRequest("  Policy had lapsed  "), CLAIMS_STAFF);
 
         assertThat(response.status()).isEqualTo(ClaimStatus.REJECTED);
         assertThat(publishedEvent().type()).isEqualTo(ClaimEventType.CLAIM_REJECTED);
@@ -182,7 +184,7 @@ class ClaimWorkflowServiceTest {
         Claim claim = assignedClaim(10L, 7L);
         when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
-        ClaimSummaryResponse response = claimService.requestAdditionalInfo(10L, new RequestInfoRequest(" Send photos "), OFFICER);
+        ClaimSummaryResponse response = claimService.requestAdditionalInfo(10L, new RequestInfoRequest(" Send photos "), CLAIMS_STAFF);
 
         assertThat(response.status()).isEqualTo(ClaimStatus.MORE_INFO_REQUIRED);
         assertThat(publishedEvent().type()).isEqualTo(ClaimEventType.ADDITIONAL_INFO_REQUESTED);
@@ -190,15 +192,15 @@ class ClaimWorkflowServiceTest {
     }
 
     @Test
-    void onlyTheAssignedOfficerMayDecide() {
+    void onlyTheAssignedStaffMemberMayDecide() {
         Claim claim = assignedClaim(10L, 7L);
         when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
-        assertThatThrownBy(() -> claimService.approve(10L, null, OTHER_OFFICER)).isInstanceOf(NotAssignedOfficerException.class);
-        assertThatThrownBy(() -> claimService.reject(10L, new RejectClaimRequest("no"), OTHER_OFFICER))
-                .isInstanceOf(NotAssignedOfficerException.class);
-        assertThatThrownBy(() -> claimService.requestAdditionalInfo(10L, new RequestInfoRequest("x"), OTHER_OFFICER))
-                .isInstanceOf(NotAssignedOfficerException.class);
+        assertThatThrownBy(() -> claimService.approve(10L, null, OTHER_STAFF)).isInstanceOf(NotAssignedStaffException.class);
+        assertThatThrownBy(() -> claimService.reject(10L, new RejectClaimRequest("no"), OTHER_STAFF))
+                .isInstanceOf(NotAssignedStaffException.class);
+        assertThatThrownBy(() -> claimService.requestAdditionalInfo(10L, new RequestInfoRequest("x"), OTHER_STAFF))
+                .isInstanceOf(NotAssignedStaffException.class);
 
         assertThat(claim.getStatus()).isEqualTo(ClaimStatus.UNDER_REVIEW);
         verify(claimRepository, never()).save(any());
@@ -210,7 +212,7 @@ class ClaimWorkflowServiceTest {
         Claim claim = submittedClaim(10L);
         when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
-        assertThatThrownBy(() -> claimService.approve(10L, null, OFFICER)).isInstanceOf(NotAssignedOfficerException.class);
+        assertThatThrownBy(() -> claimService.approve(10L, null, CLAIMS_STAFF)).isInstanceOf(NotAssignedStaffException.class);
     }
 
     @ParameterizedTest
@@ -220,10 +222,10 @@ class ClaimWorkflowServiceTest {
         ReflectionTestUtils.setField(claim, "status", status);
         when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
 
-        assertThatThrownBy(() -> claimService.approve(10L, null, OFFICER)).isInstanceOf(InvalidStatusTransitionException.class);
-        assertThatThrownBy(() -> claimService.reject(10L, new RejectClaimRequest("no"), OFFICER))
+        assertThatThrownBy(() -> claimService.approve(10L, null, CLAIMS_STAFF)).isInstanceOf(InvalidStatusTransitionException.class);
+        assertThatThrownBy(() -> claimService.reject(10L, new RejectClaimRequest("no"), CLAIMS_STAFF))
                 .isInstanceOf(InvalidStatusTransitionException.class);
-        assertThatThrownBy(() -> claimService.requestAdditionalInfo(10L, new RequestInfoRequest("x"), OFFICER))
+        assertThatThrownBy(() -> claimService.requestAdditionalInfo(10L, new RequestInfoRequest("x"), CLAIMS_STAFF))
                 .isInstanceOf(InvalidStatusTransitionException.class);
 
         assertThat(claim.getStatus()).isEqualTo(status);
@@ -234,7 +236,7 @@ class ClaimWorkflowServiceTest {
     void decisionOnAnUnknownClaimIsNotFound() {
         when(claimRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> claimService.approve(99L, null, OFFICER)).isInstanceOf(ClaimNotFoundException.class);
+        assertThatThrownBy(() -> claimService.approve(99L, null, CLAIMS_STAFF)).isInstanceOf(ClaimNotFoundException.class);
     }
 
     // ---- read side --------------------------------------------------------------------------------------------
@@ -246,7 +248,7 @@ class ClaimWorkflowServiceTest {
         ClaimSummaryResponse response = claimService.getClaimById(10L);
 
         assertThat(response.claimNumber()).isEqualTo("CLM-2026-000010");
-        assertThat(response.assignedOfficerId()).isEqualTo(7L);
+        assertThat(response.assignedStaffId()).isEqualTo(7L);
     }
 
     @Test
@@ -258,15 +260,15 @@ class ClaimWorkflowServiceTest {
 
     @Test
     void statisticsExposeTheRepositoryAggregatesUnchanged() {
-        List<StatusTotal> byStatus = List.of(new StatusTotal(ClaimStatus.SUBMITTED, 2, new BigDecimal("300.00")));
-        List<OfficerStatusTotal> byOfficer = List.of(new OfficerStatusTotal(7L, ClaimStatus.UNDER_REVIEW, 1, new BigDecimal("100.00")));
+        List<StatusTotal> byStatus = List.of(new StatusTotal(Market.SG, Currency.SGD, ClaimStatus.SUBMITTED, 2, new BigDecimal("300.00")));
+        List<StaffStatusTotal> byStaff = List.of(new StaffStatusTotal(7L, Market.SG, Currency.SGD, ClaimStatus.UNDER_REVIEW, 1, new BigDecimal("100.00")));
         when(claimRepository.totalsByStatus()).thenReturn(byStatus);
-        when(claimRepository.totalsByOfficerAndStatus()).thenReturn(byOfficer);
+        when(claimRepository.totalsByStaffAndStatus()).thenReturn(byStaff);
 
         ClaimStatisticsResponse statistics = claimService.statistics();
 
         assertThat(statistics.byStatus()).isEqualTo(byStatus);
-        assertThat(statistics.byOfficer()).isEqualTo(byOfficer);
+        assertThat(statistics.byStaff()).isEqualTo(byStaff);
     }
 
     // ---- helpers ----------------------------------------------------------------------------------------------
@@ -278,15 +280,15 @@ class ClaimWorkflowServiceTest {
     }
 
     private static Claim submittedClaim(Long id) {
-        Claim claim = new Claim("CLM-2026-%06d".formatted(id), "POL-2026-1", 5L, "Jane Tan", "jane@example.com", ClaimType.AUTO,
+        Claim claim = new Claim("CLM-2026-%06d".formatted(id), "POL-2026-1", 5L, "Jane Tan", "jane@example.com", ClaimType.AUTO, Market.SG,
                 LocalDate.of(2026, 10, 1), "Orchard Road", "Rear-ended", new BigDecimal("2500.00"), NOW.minusSeconds(600));
         ReflectionTestUtils.setField(claim, "id", id);
         return claim;
     }
 
-    private static Claim assignedClaim(Long id, Long officerId) {
+    private static Claim assignedClaim(Long id, Long staffId) {
         Claim claim = submittedClaim(id);
-        claim.assignTo(officerId, NOW.minusSeconds(300));
+        claim.assignTo(staffId, NOW.minusSeconds(300));
         return claim;
     }
 }

@@ -59,7 +59,7 @@ class ClaimApiIntegrationTest {
     void aClaimGoesFromSubmissionThroughMoreInfoRequestedBackToReview() throws Exception {
         long jane = randomUserId();
         long bob = randomUserId();
-        long officer = randomUserId();
+        long staffMember = randomUserId();
         String policy = uniquePolicy();
 
         // 1. Jane submits a claim.
@@ -77,13 +77,13 @@ class ClaimApiIntegrationTest {
         long claimId = claim.get("id").asLong();
         created.andExpect(header().string("Location", containsString("/api/claims/" + claimNumber)));
 
-        // 2. Tracking: the owner and any officer can open it; another claimant cannot, even by lower-case number.
+        // 2. Tracking: the owner and any staff member can open it; another claimant cannot, even by lower-case number.
         mockMvc.perform(get("/api/claims/" + claimNumber).header(HttpHeaders.AUTHORIZATION, token(jane, Role.CLAIMANT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.policyNumber").value(policy));
         mockMvc.perform(get("/api/claims/" + claimNumber.toLowerCase()).header(HttpHeaders.AUTHORIZATION, token(jane, Role.CLAIMANT)))
                 .andExpect(status().isOk());
-        mockMvc.perform(get("/api/claims/" + claimNumber).header(HttpHeaders.AUTHORIZATION, token(officer, Role.OFFICER)))
+        mockMvc.perform(get("/api/claims/" + claimNumber).header(HttpHeaders.AUTHORIZATION, token(staffMember, Role.CLAIMS_STAFF)))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/claims/" + claimNumber).header(HttpHeaders.AUTHORIZATION, token(bob, Role.CLAIMANT)))
                 .andExpect(status().isNotFound());
@@ -96,7 +96,7 @@ class ClaimApiIntegrationTest {
         mockMvc.perform(get("/api/claims/my-claims").header(HttpHeaders.AUTHORIZATION, token(bob, Role.CLAIMANT)))
                 .andExpect(jsonPath("$.totalElements").value(0));
         mockMvc.perform(get("/api/claims/search").param("policyNumber", policy)
-                        .header(HttpHeaders.AUTHORIZATION, token(officer, Role.OFFICER)))
+                        .header(HttpHeaders.AUTHORIZATION, token(staffMember, Role.CLAIMS_STAFF)))
                 .andExpect(jsonPath("$.totalElements").value(1));
         mockMvc.perform(get("/api/claims/search").param("policyNumber", policy)
                         .header(HttpHeaders.AUTHORIZATION, token(jane, Role.CLAIMANT)))
@@ -108,7 +108,7 @@ class ClaimApiIntegrationTest {
         // 4. The claim is not awaiting information yet, so answering is a conflict.
         additionalInfo(token(jane, Role.CLAIMANT), claimId, "too early").andExpect(status().isConflict());
 
-        // 5. An officer asks for more information (assessment-service will do this; simulated directly for now).
+        // 5. A staff member asks for more information (assessment-service will do this; simulated directly for now).
         Claim stored = claimRepository.findById(claimId).orElseThrow();
         stored.transitionTo(ClaimStatus.UNDER_REVIEW, Instant.now());
         stored.transitionTo(ClaimStatus.MORE_INFO_REQUIRED, Instant.now());
@@ -187,36 +187,36 @@ class ClaimApiIntegrationTest {
     }
 
     @Test
-    void searchFiltersByStatusDateRangeAndOfficer() throws Exception {
+    void searchFiltersByStatusDateRangeAndStaffMember() throws Exception {
         long claimant = randomUserId();
         String policy = uniquePolicy();
         long claimId = json(createClaim(token(claimant, Role.CLAIMANT), policy, "50.00")).get("id").asLong();
-        String officer = token(randomUserId(), Role.OFFICER);
+        String staffMember = token(randomUserId(), Role.CLAIMS_STAFF);
         String today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString();
 
         mockMvc.perform(get("/api/claims/search").param("policyNumber", policy).param("status", "SUBMITTED")
-                        .param("fromDate", today).param("toDate", today).header(HttpHeaders.AUTHORIZATION, officer))
+                        .param("fromDate", today).param("toDate", today).header(HttpHeaders.AUTHORIZATION, staffMember))
                 .andExpect(jsonPath("$.totalElements").value(1));
         mockMvc.perform(get("/api/claims/search").param("policyNumber", policy).param("status", "APPROVED")
-                        .header(HttpHeaders.AUTHORIZATION, officer))
+                        .header(HttpHeaders.AUTHORIZATION, staffMember))
                 .andExpect(jsonPath("$.totalElements").value(0));
         mockMvc.perform(get("/api/claims/search").param("policyNumber", policy).param("toDate", "2020-01-01")
-                        .header(HttpHeaders.AUTHORIZATION, officer))
+                        .header(HttpHeaders.AUTHORIZATION, staffMember))
                 .andExpect(jsonPath("$.totalElements").value(0));
-        mockMvc.perform(get("/api/claims/search").param("policyNumber", policy).param("assignedOfficerId", "99")
-                        .header(HttpHeaders.AUTHORIZATION, officer))
+        mockMvc.perform(get("/api/claims/search").param("policyNumber", policy).param("assignedStaffId", "99")
+                        .header(HttpHeaders.AUTHORIZATION, staffMember))
                 .andExpect(jsonPath("$.totalElements").value(0));
 
         Claim assigned = claimRepository.findById(claimId).orElseThrow();
-        org.springframework.test.util.ReflectionTestUtils.setField(assigned, "assignedOfficerId", 99L);
+        org.springframework.test.util.ReflectionTestUtils.setField(assigned, "assignedStaffId", 99L);
         claimRepository.save(assigned);
-        mockMvc.perform(get("/api/claims/search").param("policyNumber", policy).param("assignedOfficerId", "99")
-                        .header(HttpHeaders.AUTHORIZATION, officer))
+        mockMvc.perform(get("/api/claims/search").param("policyNumber", policy).param("assignedStaffId", "99")
+                        .header(HttpHeaders.AUTHORIZATION, staffMember))
                 .andExpect(jsonPath("$.totalElements").value(1))
-                .andExpect(jsonPath("$.content[0].assignedOfficerId").value(99));
+                .andExpect(jsonPath("$.content[0].assignedStaffId").value(99));
 
         mockMvc.perform(get("/api/claims/search").param("fromDate", "2026-12-31").param("toDate", "2026-01-01")
-                        .header(HttpHeaders.AUTHORIZATION, officer))
+                        .header(HttpHeaders.AUTHORIZATION, staffMember))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("fromDate must not be after toDate"));
     }
@@ -228,16 +228,55 @@ class ClaimApiIntegrationTest {
 
         mockMvc.perform(post("/api/claims").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"policyNumber":"POL-9999","claimType":"AUTO","incidentDate":"2999-01-01",
+                                {"policyNumber":"POL-9999","claimType":"AUTO","market":"SG","incidentDate":"2999-01-01",
                                  "description":"from the future","claimAmount":10.00}"""))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("incidentDate cannot be in the future"));
         mockMvc.perform(post("/api/claims").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"policyNumber":"POL-9999","claimType":"AUTO","incidentDate":"2026-01-01",
+                                {"policyNumber":"POL-9999","claimType":"AUTO","market":"SG","incidentDate":"2026-01-01",
                                  "description":"free money","claimAmount":0}"""))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.claimAmount").exists());
+
+        assertThat(claimRepository.count()).isEqualTo(before);
+    }
+
+    @Test
+    void aClaimFiledInAMarketIsFoundByThatMarketOnly() throws Exception {
+        String token = token(randomUserId(), Role.CLAIMANT);
+        String policy = uniquePolicy();
+
+        mockMvc.perform(post("/api/claims").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"policyNumber":"%s","claimType":"HOME","market":"NZ","incidentDate":"2026-10-15",
+                                 "description":"Storm damage to the roof","claimAmount":900.00}""".formatted(policy)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.market").value("NZ"))
+                .andExpect(jsonPath("$.currency").value("NZD"));
+
+        mockMvc.perform(get("/api/claims/search").param("policyNumber", policy).param("market", "NZ")
+                        .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].market").value("NZ"))
+                .andExpect(jsonPath("$.content[0].currency").value("NZD"));
+        mockMvc.perform(get("/api/claims/search").param("policyNumber", policy).param("market", "SG")
+                        .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
+    void aClaimWithoutAMarketIsRejectedAndNotStored() throws Exception {
+        String token = token(randomUserId(), Role.CLAIMANT);
+        long before = claimRepository.count();
+
+        mockMvc.perform(post("/api/claims").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"policyNumber":"POL-9999","claimType":"AUTO","incidentDate":"2026-01-01",
+                                 "description":"no market given","claimAmount":10.00}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.market").exists());
 
         assertThat(claimRepository.count()).isEqualTo(before);
     }
@@ -248,7 +287,7 @@ class ClaimApiIntegrationTest {
         return mockMvc.perform(post("/api/claims").header(HttpHeaders.AUTHORIZATION, bearer)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"policyNumber":"%s","claimType":"AUTO","incidentDate":"2026-10-15","incidentLocation":"Orchard Road",
+                        {"policyNumber":"%s","claimType":"AUTO","market":"SG","incidentDate":"2026-10-15","incidentLocation":"Orchard Road",
                          "description":"Rear-ended at a traffic light","claimAmount":%s}""".formatted(policyNumber, amount)));
     }
 

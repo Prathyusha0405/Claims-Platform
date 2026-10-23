@@ -7,16 +7,16 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
 
-/** The officer's assessment of a claim, together with the claim's status right after the action. */
+/** The staff member's assessment of a claim, together with the claim's status right after the action. */
 public record AssessmentResponse(
         Long claimId,
         String claimNumber,
         @Schema(description = "Claim status as reported by claim-service after this action")
         ClaimStatus claimStatus,
-        Long officerId,
-        String officerName,
+        Long staffId,
+        String staffName,
         Instant assignedAt,
-        @Schema(description = "Set once the officer approves or rejects; null while the claim is being reviewed")
+        @Schema(description = "Set once the assigned staff member approves or rejects; null while the claim is being reviewed")
         AssessmentDecision decision,
         String decisionReason,
         Instant decidedAt) {
@@ -26,8 +26,8 @@ public record AssessmentResponse(
                 assessment.getClaimId(),
                 assessment.getClaimNumber(),
                 claimStatus,
-                assessment.getOfficerId(),
-                assessment.getOfficerName(),
+                assessment.getStaffId(),
+                assessment.getStaffName(),
                 assessment.getAssignedAt(),
                 assessment.getDecision(),
                 assessment.getDecisionReason(),

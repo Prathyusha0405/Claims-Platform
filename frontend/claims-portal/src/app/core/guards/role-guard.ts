@@ -5,7 +5,7 @@ import { Role } from '@core/models/role';
 import { AuthStore } from '@core/services/auth-store';
 
 /**
- * Role gate for a lazy area, e.g. `canMatch: [roleGuard('OFFICER')]`. Because it runs at *match* time the area's code
+ * Role gate for a lazy area, e.g. `canMatch: [roleGuard('CLAIMS_STAFF')]`. Because it runs at *match* time the area's code
  * is not even downloaded for the wrong role.
  *  - signed out → login, remembering the page they asked for (`returnUrl`)
  *  - signed in with a role in `allowed` → the area opens

@@ -41,7 +41,7 @@ class ClaimNotificationFactoryTest {
     }
 
     @Test
-    void theAssignedOfficerIsToldWhenTheClaimantAnswersTheirRequest() {
+    void theAssignedStaffMemberIsToldWhenTheClaimantAnswersTheirRequest() {
         List<Notification> notifications = ClaimNotificationFactory.notificationsFor(
                 event(ClaimEventType.ADDITIONAL_INFO_RECEIVED, 7L));
 
@@ -51,14 +51,14 @@ class ClaimNotificationFactoryTest {
     }
 
     @Test
-    void noOfficerNotificationWhenNobodyIsAssigned() {
+    void noStaffMemberNotificationWhenNobodyIsAssigned() {
         assertThat(ClaimNotificationFactory.notificationsFor(event(ClaimEventType.ADDITIONAL_INFO_RECEIVED, null)))
                 .hasSize(1);
     }
 
     @ParameterizedTest
     @EnumSource(value = ClaimEventType.class, mode = EnumSource.Mode.EXCLUDE, names = "ADDITIONAL_INFO_RECEIVED")
-    void otherEventsOnlyNotifyTheClaimantEvenWhenAnOfficerIsAssigned(ClaimEventType type) {
+    void otherEventsOnlyNotifyTheClaimantEvenWhenAStaffMemberIsAssigned(ClaimEventType type) {
         assertThat(ClaimNotificationFactory.notificationsFor(event(type, 7L))).hasSize(1);
     }
 
@@ -66,8 +66,8 @@ class ClaimNotificationFactoryTest {
         return ClaimNotificationFactory.notificationsFor(event(type, null)).get(0).getMessage();
     }
 
-    private static ClaimEvent event(ClaimEventType type, Long assignedOfficerId) {
-        return new ClaimEvent(type, 10L, "CLM-2026-000001", 5L, assignedOfficerId,
-                ClaimStatus.UNDER_REVIEW, ClaimStatus.UNDER_REVIEW, 9L, "OFFICER", "details", NOW);
+    private static ClaimEvent event(ClaimEventType type, Long assignedStaffId) {
+        return new ClaimEvent(type, 10L, "CLM-2026-000001", 5L, assignedStaffId,
+                ClaimStatus.UNDER_REVIEW, ClaimStatus.UNDER_REVIEW, 9L, "CLAIMS_STAFF", "details", NOW);
     }
 }

@@ -47,8 +47,8 @@ class NotificationControllerTest {
     private static final Instant NOW = Instant.parse("2026-10-22T06:00:00Z");
 
     private static final AuthenticatedUser CLAIMANT = new AuthenticatedUser(5L, "jane@example.com", "Jane Tan", Role.CLAIMANT);
-    private static final AuthenticatedUser OFFICER = new AuthenticatedUser(7L, "officer@chubb.com", "Demo Officer", Role.OFFICER);
-    private static final AuthenticatedUser ADMIN = new AuthenticatedUser(8L, "admin@chubb.com", "Demo Admin", Role.ADMIN);
+    private static final AuthenticatedUser CLAIMS_STAFF = new AuthenticatedUser(7L, "staff@chubb.com", "Demo Claims Staff", Role.CLAIMS_STAFF);
+    private static final AuthenticatedUser MANAGER = new AuthenticatedUser(8L, "manager@chubb.com", "Demo Manager", Role.MANAGER);
 
     @Autowired
     private MockMvc mockMvc;
@@ -193,14 +193,14 @@ class NotificationControllerTest {
         when(notificationService.countUnread(any())).thenReturn(new UnreadCountResponse(0));
         when(notificationService.markAllRead(any())).thenReturn(new MarkedReadResponse(0));
 
-        for (AuthenticatedUser user : List.of(CLAIMANT, OFFICER, ADMIN)) {
+        for (AuthenticatedUser user : List.of(CLAIMANT, CLAIMS_STAFF, MANAGER)) {
             mockMvc.perform(get("/api/notifications").with(as(user))).andExpect(status().isOk());
             mockMvc.perform(get("/api/notifications/unread-count").with(as(user))).andExpect(status().isOk());
             mockMvc.perform(post("/api/notifications/read-all").with(as(user))).andExpect(status().isOk());
         }
         // Each call is made for the caller's own identity, never one supplied by the client.
-        verify(notificationService).getNotifications(eq(OFFICER), eq(false), any(Pageable.class));
-        verify(notificationService).countUnread(ADMIN);
+        verify(notificationService).getNotifications(eq(CLAIMS_STAFF), eq(false), any(Pageable.class));
+        verify(notificationService).countUnread(MANAGER);
     }
 
     @Test

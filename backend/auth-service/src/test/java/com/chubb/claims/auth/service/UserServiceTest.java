@@ -43,14 +43,14 @@ class UserServiceTest {
         when(passwordEncoder.encode("Secret123")).thenReturn("hashed");
         when(userRepository.saveAndFlush(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        User created = userService.createUser("  Jane Tan ", "  Jane@Example.COM ", "Secret123", Role.OFFICER);
+        User created = userService.createUser("  Jane Tan ", "  Jane@Example.COM ", "Secret123", Role.CLAIMS_STAFF);
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(userRepository).saveAndFlush(saved.capture());
         assertThat(saved.getValue().getFullName()).isEqualTo("Jane Tan");
         assertThat(saved.getValue().getEmail()).isEqualTo("jane@example.com");
         assertThat(saved.getValue().getPasswordHash()).isEqualTo("hashed");
-        assertThat(saved.getValue().getRole()).isEqualTo(Role.OFFICER);
+        assertThat(saved.getValue().getRole()).isEqualTo(Role.CLAIMS_STAFF);
         assertThat(created).isSameAs(saved.getValue());
     }
 

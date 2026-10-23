@@ -1,30 +1,30 @@
 -- =====================================================================================================================
 -- CHUBB APAC CLAIMS PLATFORM  |  AUTH SERVICE  |  V2__seed_data.sql   (DEMO DATA)
 -- ---------------------------------------------------------------------------------------------------------------------
--- 26 users: 1 ADMIN, 5 OFFICERS, 20 CLAIMANTS across Australia, Singapore, Hong Kong, Japan, Malaysia, New Zealand.
+-- 26 users: 1 MANAGER, 5 CLAIMS STAFF, 20 CLAIMANTS across Australia, Singapore, Hong Kong, Japan, Malaysia, New Zealand.
 -- Data is anchored at 2026-10-22; all timestamps are UTC.
 --
 -- DEMO LOGINS (BCrypt-hashed below; these are public demo passwords, never use them outside a demo):
---     admin@chubb.com      / Admin@123       ADMIN      (the dashboards)
---     officer@chubb.com    / Officer@123     OFFICER    (work queue and decisions); the other officers use the same password
+--     manager@chubb.com      / Manager@123       MANAGER      (the dashboards)
+--     staff@chubb.com    / Staff@123     CLAIMS_STAFF    (work queue and decisions); the other claims staff use the same password
 --     <any claimant email> / Claimant@123    CLAIMANT   (e.g. weiling.tan@example.com)
 --
 -- ID CONTRACT with the other services (they reference users by id only):
---     1 = admin, 2..6 = officers, 7..26 = claimants.  claim-service and assessment-service seed data use these ids.
+--     1 = manager, 2..6 = claims staff, 7..26 = claimants.  claim-service and assessment-service seed data use these ids.
 --
 -- To start with an EMPTY platform instead, skip this file: set FLYWAY_TARGET=1 (spring.flyway.target).
 -- =====================================================================================================================
 
 -- ---------------------------------------------------------------------------------------------------------------------
--- Staff: 1 admin and 5 claims officers (one per region; Sydney also covers New Zealand)
+-- Staff: 1 manager and 5 claims staff (one per region; Sydney also covers New Zealand)
 -- ---------------------------------------------------------------------------------------------------------------------
 INSERT INTO users (id, full_name, email, password_hash, role, created_at, updated_at) VALUES
-    (1, 'Natalie Cheung', 'admin@chubb.com', '$2a$10$pr8ZlG4ROvDHVtj7BgIsEOGSk9TCfoJ2lwwAePXuPBMGoyudfdV92', 'ADMIN', '2025-09-05 13:32:31+00:00', '2025-09-05 13:32:31+00:00'),  -- ADMIN | Singapore
-    (2, 'Olivia Bennett', 'officer@chubb.com', '$2a$10$ZEtz52WBSBJiWDaDpYj3/.0jA1KL5aFblYyVSCSeqgx.ldv4HG7xG', 'OFFICER', '2025-08-15 18:43:08+00:00', '2025-08-15 18:43:08+00:00'),  -- OFFICER | Sydney
-    (3, 'Kenji Sato', 'kenji.sato@chubb.com', '$2a$10$tzymrxm1c02bPzFt.640FOXMDGiD2QIPuts8lEDLTAAEhrqH6rsfm', 'OFFICER', '2025-08-03 05:57:04+00:00', '2025-08-03 05:57:04+00:00'),  -- OFFICER | Tokyo
-    (4, 'Mei Lin Chua', 'mei.lin.chua@chubb.com', '$2a$10$/TaVTWa8s90JT9tbmZD9VO2pxJRdKaPXDwv9A0UEkj88EPpiVjCs6', 'OFFICER', '2025-08-22 14:55:14+00:00', '2025-08-22 14:55:14+00:00'),  -- OFFICER | Singapore
-    (5, 'Rajesh Kumar', 'rajesh.kumar@chubb.com', '$2a$10$V2xAOE4944nNb23tsO8NtO8lAJiuciowe.uVNmssI3BaNV6lq0yUC', 'OFFICER', '2025-07-07 16:37:18+00:00', '2025-07-07 16:37:18+00:00'),  -- OFFICER | Kuala Lumpur
-    (6, 'Grace Wong', 'grace.wong@chubb.com', '$2a$10$TUneSj2W8CFn1mBuFMjrhu49QjOFaeV9wJzqOwTQ6UixFJO9uWfhq', 'OFFICER', '2025-08-02 09:54:48+00:00', '2025-08-02 09:54:48+00:00');  -- OFFICER | Hong Kong
+    (1, 'Natalie Cheung', 'manager@chubb.com', '$2a$10$i6UhhRJ62UUY2xxhbnc.XeWMVYI0ofpO3MfLvLE7EOijnj.qIgzN.', 'MANAGER', '2025-09-05 13:32:31+00:00', '2025-09-05 13:32:31+00:00'),  -- MANAGER | Singapore
+    (2, 'Olivia Bennett', 'staff@chubb.com', '$2a$10$LuCf.Ux7ySQrU9LGJ1kBF.h3FmDPct9WJUquyWmXDXIYOiyO15hBm', 'CLAIMS_STAFF', '2025-08-15 18:43:08+00:00', '2025-08-15 18:43:08+00:00'),  -- CLAIMS_STAFF | Sydney
+    (3, 'Kenji Sato', 'kenji.sato@chubb.com', '$2a$10$Uo11eF53O9hCOZ4/bA.5nOgQv79FwgS2mOUr0n39NpD5Zj5dPyXUK', 'CLAIMS_STAFF', '2025-08-03 05:57:04+00:00', '2025-08-03 05:57:04+00:00'),  -- CLAIMS_STAFF | Tokyo
+    (4, 'Mei Lin Chua', 'mei.lin.chua@chubb.com', '$2a$10$Or6UA4pRbmQoJOJxrpVqU.Glq1mdRDjDg1bAH62xUHcSez0h6bYD.', 'CLAIMS_STAFF', '2025-08-22 14:55:14+00:00', '2025-08-22 14:55:14+00:00'),  -- CLAIMS_STAFF | Singapore
+    (5, 'Rajesh Kumar', 'rajesh.kumar@chubb.com', '$2a$10$RDPUiGPDhXS/eFQTd..q3elznAP6YCrSbvQKuOMBBevY9l5b9b5.i', 'CLAIMS_STAFF', '2025-07-07 16:37:18+00:00', '2025-07-07 16:37:18+00:00'),  -- CLAIMS_STAFF | Kuala Lumpur
+    (6, 'Grace Wong', 'grace.wong@chubb.com', '$2a$10$8zh4yzYaer/jj9NXed7ybeKrtx3b7hc8dhYrEBKgzCRc3qvQ1XRAG', 'CLAIMS_STAFF', '2025-08-02 09:54:48+00:00', '2025-08-02 09:54:48+00:00');  -- CLAIMS_STAFF | Hong Kong
 
 -- ---------------------------------------------------------------------------------------------------------------------
 -- Claimants: 20 policyholders (AU 5, SG 4, HK 3, JP 3, MY 3, NZ 2); each registered before their first claim

@@ -11,14 +11,14 @@ public interface ClaimAssessmentRepository extends JpaRepository<ClaimAssessment
 
     Optional<ClaimAssessment> findByClaimId(Long claimId);
 
-    /** One display name per officer who has ever taken a claim; claim-service only knows officer ids. */
-    @Query("select a.officerId as officerId, max(a.officerName) as officerName from ClaimAssessment a group by a.officerId")
-    List<OfficerName> findOfficerNames();
+    /** One display name per staff member who has ever taken a claim; claim-service only knows staff member ids. */
+    @Query("select a.staffId as staffId, max(a.staffName) as staffName from ClaimAssessment a group by a.staffId")
+    List<StaffName> findStaffNames();
 
-    interface OfficerName {
+    interface StaffName {
 
-        Long getOfficerId();
+        Long getStaffId();
 
-        String getOfficerName();
+        String getStaffName();
     }
 }

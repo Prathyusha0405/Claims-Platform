@@ -56,7 +56,7 @@ class RestClaimServiceClientTest {
     @BeforeEach
     void setUp() {
         stub.reset();
-        authenticateAs("officer-token");
+        authenticateAs("staff-token");
     }
 
     @AfterEach
@@ -75,7 +75,7 @@ class RestClaimServiceClientTest {
         client.getStatistics();
 
         assertThat(stub.requests()).hasSize(2)
-                .allSatisfy(request -> assertThat(request.header("authorization")).isEqualTo("Bearer officer-token"));
+                .allSatisfy(request -> assertThat(request.header("authorization")).isEqualTo("Bearer staff-token"));
     }
 
     @Test
@@ -116,9 +116,27 @@ class RestClaimServiceClientTest {
     void workQueueRequestsSubmittedClaimsWithPagingAndSorting() {
         stub.on("GET", "/api/claims/search", 200, ClaimJson.page(ClaimJson.claim(10, "SUBMITTED", null)));
 
-        client.findUnassigned(PageRequest.of(2, 5, Sort.by(Sort.Direction.ASC, "createdAt").and(Sort.by(Sort.Direction.DESC, "claimAmount"))));
+        client.findUnassigned(null, PageRequest.of(2, 5, Sort.by(Sort.Direction.ASC, "createdAt").and(Sort.by(Sort.Direction.DESC, "claimAmount"))));
 
         assertThat(stub.lastRequest().query()).isEqualTo("status=SUBMITTED&page=2&size=5&sort=createdAt,asc&sort=claimAmount,desc");
+    }
+
+    @Test
+    void workQueueCanBeNarrowedToOneMarket() {
+        stub.on("GET", "/api/claims/search", 200, ClaimJson.page(ClaimJson.claim(10, "SUBMITTED", null)));
+
+        client.findUnassigned(" NZ ", PageRequest.of(0, 20));
+
+        assertThat(stub.lastRequest().query()).isEqualTo("status=SUBMITTED&page=0&size=20&market=NZ");
+    }
+
+    @Test
+    void aBlankMarketMeansEveryMarket() {
+        stub.on("GET", "/api/claims/search", 200, ClaimJson.page(ClaimJson.claim(10, "SUBMITTED", null)));
+
+        client.findUnassigned("  ", PageRequest.of(0, 20));
+
+        assertThat(stub.lastRequest().query()).isEqualTo("status=SUBMITTED&page=0&size=20");
     }
 
     // ---- what it understands ----------------------------------------------------------------------------------
@@ -129,8 +147,8 @@ class RestClaimServiceClientTest {
 
         RemoteClaim claim = client.getClaim(10L);
 
-        assertThat(claim).isEqualTo(new RemoteClaim(10L, "CLM-2026-000010", "POL-2026-1", "AUTO", ClaimStatus.UNDER_REVIEW,
-                new BigDecimal("2500.50"), LocalDate.of(2026, 10, 1), 7L,
+        assertThat(claim).isEqualTo(new RemoteClaim(10L, "CLM-2026-000010", "POL-2026-1", "AUTO", "SG", ClaimStatus.UNDER_REVIEW,
+                new BigDecimal("2500.50"), "SGD", LocalDate.of(2026, 10, 1), 7L,
                 Instant.parse("2026-10-22T06:00:00Z"), Instant.parse("2026-10-22T06:30:00Z")));
     }
 
@@ -138,7 +156,7 @@ class RestClaimServiceClientTest {
     void mapsAPageOfClaims() {
         stub.on("GET", "/api/claims/search", 200, ClaimJson.page(ClaimJson.claim(10, "SUBMITTED", null), ClaimJson.claim(11, "SUBMITTED", null)));
 
-        RemotePage<RemoteClaim> page = client.findUnassigned(PageRequest.of(0, 20));
+        RemotePage<RemoteClaim> page = client.findUnassigned(null, PageRequest.of(0, 20));
 
         assertThat(page.content()).extracting(RemoteClaim::id).containsExactly(10L, 11L);
         assertThat(page.page()).isZero();
@@ -154,11 +172,14 @@ class RestClaimServiceClientTest {
 
         RemoteStatistics statistics = client.getStatistics();
 
-        assertThat(statistics.byStatus()).hasSize(6);
-        assertThat(statistics.byStatus().get(0)).isEqualTo(new RemoteStatusTotal(ClaimStatus.SUBMITTED, 3, new BigDecimal("300.00")));
-        assertThat(statistics.byOfficer()).hasSize(6);
-        assertThat(statistics.byOfficer().get(2))
-                .isEqualTo(new RemoteOfficerStatusTotal(8L, ClaimStatus.MORE_INFO_REQUIRED, 1, new BigDecimal("500.50")));
+        assertThat(statistics.byStatus()).hasSize(8);
+        assertThat(statistics.byStatus().get(0))
+                .isEqualTo(new RemoteStatusTotal("SG", "SGD", ClaimStatus.SUBMITTED, 2, new BigDecimal("270.00")));
+        assertThat(statistics.byStatus().get(1))
+                .isEqualTo(new RemoteStatusTotal("JP", "JPY", ClaimStatus.SUBMITTED, 1, new BigDecimal("15000.00")));
+        assertThat(statistics.byStaff()).hasSize(6);
+        assertThat(statistics.byStaff().get(2))
+                .isEqualTo(new RemoteStaffStatusTotal(8L, "JP", "JPY", ClaimStatus.MORE_INFO_REQUIRED, 1, new BigDecimal("75075.00")));
     }
 
     @Test
@@ -168,7 +189,7 @@ class RestClaimServiceClientTest {
         RemoteStatistics statistics = client.getStatistics();
 
         assertThat(statistics.byStatus()).isEmpty();
-        assertThat(statistics.byOfficer()).isEmpty();
+        assertThat(statistics.byStaff()).isEmpty();
     }
 
     // ---- how it fails -----------------------------------------------------------------------------------------
@@ -201,7 +222,7 @@ class RestClaimServiceClientTest {
 
         assertThatThrownBy(() -> client.getClaim(10L)).isInstanceOf(ClaimNotFoundException.class);
         assertThatThrownBy(() -> client.getStatistics()).isInstanceOf(ClaimAccessDeniedException.class);
-        assertThatThrownBy(() -> client.findUnassigned(PageRequest.of(0, 20))).isInstanceOf(InvalidRequestException.class);
+        assertThatThrownBy(() -> client.findUnassigned(null, PageRequest.of(0, 20))).isInstanceOf(InvalidRequestException.class);
     }
 
     @Test
@@ -255,7 +276,7 @@ class RestClaimServiceClientTest {
 
     private static void authenticateAs(String token) {
         SecurityContextHolder.getContext().setAuthentication(
-                UsernamePasswordAuthenticationToken.authenticated("officer", token, List.of()));
+                UsernamePasswordAuthenticationToken.authenticated("staff", token, List.of()));
     }
 
     private static RestClaimServiceClient clientFor(String baseUrl, Duration readTimeout) {

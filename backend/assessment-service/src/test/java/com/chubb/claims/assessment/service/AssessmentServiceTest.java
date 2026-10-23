@@ -53,7 +53,7 @@ import static org.mockito.Mockito.when;
 class AssessmentServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-10-22T06:00:00Z");
-    private static final AuthenticatedUser OFFICER = new AuthenticatedUser(7L, "officer@chubb.com", "Demo Officer", Role.OFFICER);
+    private static final AuthenticatedUser CLAIMS_STAFF = new AuthenticatedUser(7L, "staff@chubb.com", "Demo Claims Staff", Role.CLAIMS_STAFF);
 
     @Mock
     private ClaimServiceClient claimServiceClient;
@@ -75,19 +75,33 @@ class AssessmentServiceTest {
     // ---- work queue -------------------------------------------------------------------------------------------
 
     @Test
+    void theWorkQueueCanBeNarrowedToOneMarket() {
+        Pageable pageable = PageRequest.of(0, 20);
+        when(claimServiceClient.findUnassigned("NZ", pageable)).thenReturn(new RemotePage<>(
+                List.of(claim(11L, ClaimStatus.SUBMITTED, null)), 0, 20, 1, 1, true, true));
+
+        PageResponse<ClaimSummaryResponse> page = assessmentService.getUnassignedClaims("NZ", pageable);
+
+        assertThat(page.content()).extracting(ClaimSummaryResponse::id).containsExactly(11L);
+        verify(claimServiceClient).findUnassigned("NZ", pageable);
+    }
+
+    @Test
     void theWorkQueueMapsClaimServicesPage() {
         Pageable pageable = PageRequest.of(1, 5);
-        when(claimServiceClient.findUnassigned(pageable)).thenReturn(new RemotePage<>(
+        when(claimServiceClient.findUnassigned(null, pageable)).thenReturn(new RemotePage<>(
                 List.of(claim(10L, ClaimStatus.SUBMITTED, null)), 1, 5, 6, 2, false, true));
 
-        PageResponse<ClaimSummaryResponse> page = assessmentService.getUnassignedClaims(pageable);
+        PageResponse<ClaimSummaryResponse> page = assessmentService.getUnassignedClaims(null, pageable);
 
         assertThat(page.content()).singleElement().satisfies(summary -> {
             assertThat(summary.id()).isEqualTo(10L);
             assertThat(summary.claimNumber()).isEqualTo("CLM-2026-000010");
             assertThat(summary.status()).isEqualTo(ClaimStatus.SUBMITTED);
+            assertThat(summary.market()).isEqualTo("SG");
+            assertThat(summary.currency()).isEqualTo("SGD");
             assertThat(summary.claimAmount()).isEqualByComparingTo("2500.00");
-            assertThat(summary.assignedOfficerId()).isNull();
+            assertThat(summary.assignedStaffId()).isNull();
         });
         assertThat(page.page()).isEqualTo(1);
         assertThat(page.size()).isEqualTo(5);
@@ -100,38 +114,38 @@ class AssessmentServiceTest {
     // ---- assign -----------------------------------------------------------------------------------------------
 
     @Test
-    void assignRecordsTheOfficersAssessmentAfterClaimServiceAccepts() {
+    void assignRecordsTheStaffMembersAssessmentAfterClaimServiceAccepts() {
         when(claimServiceClient.assign(10L)).thenReturn(claim(10L, ClaimStatus.UNDER_REVIEW, 7L));
         when(assessmentRepository.findByClaimId(10L)).thenReturn(Optional.empty());
         savedAssessmentsAreReturned();
 
-        AssessmentResponse response = assessmentService.assign(10L, OFFICER);
+        AssessmentResponse response = assessmentService.assign(10L, CLAIMS_STAFF);
 
         ArgumentCaptor<ClaimAssessment> saved = ArgumentCaptor.forClass(ClaimAssessment.class);
         verify(assessmentRepository).save(saved.capture());
         assertThat(saved.getValue().getClaimId()).isEqualTo(10L);
         assertThat(saved.getValue().getClaimNumber()).isEqualTo("CLM-2026-000010");
-        assertThat(saved.getValue().getOfficerId()).isEqualTo(7L);
-        assertThat(saved.getValue().getOfficerName()).isEqualTo("Demo Officer");
+        assertThat(saved.getValue().getStaffId()).isEqualTo(7L);
+        assertThat(saved.getValue().getStaffName()).isEqualTo("Demo Claims Staff");
         assertThat(saved.getValue().getAssignedAt()).isEqualTo(NOW);
         assertThat(saved.getValue().getDecision()).isNull();
 
         assertThat(response.claimStatus()).isEqualTo(ClaimStatus.UNDER_REVIEW);
-        assertThat(response.officerId()).isEqualTo(7L);
+        assertThat(response.staffId()).isEqualTo(7L);
         assertThat(response.claimNumber()).isEqualTo("CLM-2026-000010");
     }
 
     @Test
     void assignReusesAnExistingAssessmentRowAndClearsAnyStaleDecision() {
-        ClaimAssessment stale = new ClaimAssessment(10L, "CLM-2026-000010", 3L, "Old Officer", NOW.minusSeconds(3600));
+        ClaimAssessment stale = new ClaimAssessment(10L, "CLM-2026-000010", 3L, "Old Staff", NOW.minusSeconds(3600));
         stale.recordDecision(AssessmentDecision.REJECTED, "old", NOW.minusSeconds(60));
         when(claimServiceClient.assign(10L)).thenReturn(claim(10L, ClaimStatus.UNDER_REVIEW, 7L));
         when(assessmentRepository.findByClaimId(10L)).thenReturn(Optional.of(stale));
         savedAssessmentsAreReturned();
 
-        assessmentService.assign(10L, OFFICER);
+        assessmentService.assign(10L, CLAIMS_STAFF);
 
-        assertThat(stale.getOfficerId()).isEqualTo(7L);
+        assertThat(stale.getStaffId()).isEqualTo(7L);
         assertThat(stale.getAssignedAt()).isEqualTo(NOW);
         assertThat(stale.getDecision()).isNull();
         assertThat(stale.getDecidedAt()).isNull();
@@ -141,7 +155,7 @@ class AssessmentServiceTest {
     void assignStoresNothingWhenClaimServiceRefuses() {
         when(claimServiceClient.assign(10L)).thenThrow(new ClaimConflictException("Only a SUBMITTED claim can be assigned"));
 
-        assertThatThrownBy(() -> assessmentService.assign(10L, OFFICER)).isInstanceOf(ClaimConflictException.class);
+        assertThatThrownBy(() -> assessmentService.assign(10L, CLAIMS_STAFF)).isInstanceOf(ClaimConflictException.class);
 
         verifyNoInteractions(assessmentRepository, noteRepository);
     }
@@ -151,11 +165,11 @@ class AssessmentServiceTest {
     @Test
     void approveRecordsTheDecisionAndACommentNote() {
         when(claimServiceClient.approve(10L, "Damage confirmed")).thenReturn(claim(10L, ClaimStatus.APPROVED, 7L));
-        ClaimAssessment existing = new ClaimAssessment(10L, "CLM-2026-000010", 7L, "Demo Officer", NOW.minusSeconds(600));
+        ClaimAssessment existing = new ClaimAssessment(10L, "CLM-2026-000010", 7L, "Demo Claims Staff", NOW.minusSeconds(600));
         when(assessmentRepository.findByClaimId(10L)).thenReturn(Optional.of(existing));
         savedAssessmentsAreReturned();
 
-        AssessmentResponse response = assessmentService.approve(10L, new ApproveClaimRequest("  Damage confirmed  "), OFFICER);
+        AssessmentResponse response = assessmentService.approve(10L, new ApproveClaimRequest("  Damage confirmed  "), CLAIMS_STAFF);
 
         assertThat(existing.getDecision()).isEqualTo(AssessmentDecision.APPROVED);
         assertThat(existing.getDecisionReason()).isEqualTo("Damage confirmed");
@@ -166,7 +180,7 @@ class AssessmentServiceTest {
         assertThat(note.getNoteType()).isEqualTo(NoteType.APPROVAL);
         assertThat(note.getContent()).isEqualTo("Damage confirmed");
         assertThat(note.getClaimId()).isEqualTo(10L);
-        assertThat(note.getOfficerId()).isEqualTo(7L);
+        assertThat(note.getStaffId()).isEqualTo(7L);
 
         assertThat(response.claimStatus()).isEqualTo(ClaimStatus.APPROVED);
         assertThat(response.decision()).isEqualTo(AssessmentDecision.APPROVED);
@@ -178,8 +192,8 @@ class AssessmentServiceTest {
         when(assessmentRepository.findByClaimId(10L)).thenReturn(Optional.empty());
         savedAssessmentsAreReturned();
 
-        AssessmentResponse noBody = assessmentService.approve(10L, null, OFFICER);
-        AssessmentResponse blank = assessmentService.approve(10L, new ApproveClaimRequest("   "), OFFICER);
+        AssessmentResponse noBody = assessmentService.approve(10L, null, CLAIMS_STAFF);
+        AssessmentResponse blank = assessmentService.approve(10L, new ApproveClaimRequest("   "), CLAIMS_STAFF);
 
         assertThat(noBody.decision()).isEqualTo(AssessmentDecision.APPROVED);
         assertThat(noBody.decisionReason()).isNull();
@@ -193,19 +207,19 @@ class AssessmentServiceTest {
         when(assessmentRepository.findByClaimId(10L)).thenReturn(Optional.empty());
         savedAssessmentsAreReturned();
 
-        assessmentService.approve(10L, null, OFFICER);
+        assessmentService.approve(10L, null, CLAIMS_STAFF);
 
         ArgumentCaptor<ClaimAssessment> saved = ArgumentCaptor.forClass(ClaimAssessment.class);
         verify(assessmentRepository).save(saved.capture());
-        assertThat(saved.getValue().getOfficerId()).isEqualTo(7L);
+        assertThat(saved.getValue().getStaffId()).isEqualTo(7L);
         assertThat(saved.getValue().getDecision()).isEqualTo(AssessmentDecision.APPROVED);
     }
 
     @Test
-    void anotherOfficersClaimCannotBeApprovedAndNothingIsStored() {
+    void anotherStaffMembersClaimCannotBeApprovedAndNothingIsStored() {
         when(claimServiceClient.approve(10L, null)).thenThrow(new ClaimAccessDeniedException("This claim is not assigned to you"));
 
-        assertThatThrownBy(() -> assessmentService.approve(10L, null, OFFICER))
+        assertThatThrownBy(() -> assessmentService.approve(10L, null, CLAIMS_STAFF))
                 .isInstanceOf(ClaimAccessDeniedException.class)
                 .hasMessage("This claim is not assigned to you");
 
@@ -220,7 +234,7 @@ class AssessmentServiceTest {
         when(assessmentRepository.findByClaimId(10L)).thenReturn(Optional.empty());
         savedAssessmentsAreReturned();
 
-        AssessmentResponse response = assessmentService.reject(10L, new RejectClaimRequest("  Policy lapsed "), OFFICER);
+        AssessmentResponse response = assessmentService.reject(10L, new RejectClaimRequest("  Policy lapsed "), CLAIMS_STAFF);
 
         assertThat(response.decision()).isEqualTo(AssessmentDecision.REJECTED);
         assertThat(response.decisionReason()).isEqualTo("Policy lapsed");
@@ -234,7 +248,7 @@ class AssessmentServiceTest {
     void rejectStoresNothingWhenTheClaimIsNotUnderReview() {
         when(claimServiceClient.reject(10L, "no")).thenThrow(new ClaimConflictException("Cannot move a claim from APPROVED to REJECTED"));
 
-        assertThatThrownBy(() -> assessmentService.reject(10L, new RejectClaimRequest("no"), OFFICER))
+        assertThatThrownBy(() -> assessmentService.reject(10L, new RejectClaimRequest("no"), CLAIMS_STAFF))
                 .isInstanceOf(ClaimConflictException.class);
 
         verifyNoInteractions(assessmentRepository, noteRepository);
@@ -245,11 +259,11 @@ class AssessmentServiceTest {
     @Test
     void requestInfoNotesTheRequestButRecordsNoDecision() {
         when(claimServiceClient.requestInfo(10L, "Send photos")).thenReturn(claim(10L, ClaimStatus.MORE_INFO_REQUIRED, 7L));
-        ClaimAssessment existing = new ClaimAssessment(10L, "CLM-2026-000010", 7L, "Demo Officer", NOW.minusSeconds(600));
+        ClaimAssessment existing = new ClaimAssessment(10L, "CLM-2026-000010", 7L, "Demo Claims Staff", NOW.minusSeconds(600));
         when(assessmentRepository.findByClaimId(10L)).thenReturn(Optional.of(existing));
         savedAssessmentsAreReturned();
 
-        AssessmentResponse response = assessmentService.requestInfo(10L, new RequestInfoRequest(" Send photos "), OFFICER);
+        AssessmentResponse response = assessmentService.requestInfo(10L, new RequestInfoRequest(" Send photos "), CLAIMS_STAFF);
 
         assertThat(response.claimStatus()).isEqualTo(ClaimStatus.MORE_INFO_REQUIRED);
         assertThat(response.decision()).isNull();
@@ -261,15 +275,15 @@ class AssessmentServiceTest {
     // ---- notes ------------------------------------------------------------------------------------------------
 
     @Test
-    void anOfficerCanNoteAnyExistingClaim() {
+    void aStaffMemberCanNoteAnyExistingClaim() {
         when(claimServiceClient.getClaim(10L)).thenReturn(claim(10L, ClaimStatus.SUBMITTED, null));
         when(noteRepository.save(any(ClaimNote.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        NoteResponse response = assessmentService.addNote(10L, new AddNoteRequest("  Workshop estimate looks inflated  "), OFFICER);
+        NoteResponse response = assessmentService.addNote(10L, new AddNoteRequest("  Workshop estimate looks inflated  "), CLAIMS_STAFF);
 
         assertThat(response.claimId()).isEqualTo(10L);
-        assertThat(response.officerId()).isEqualTo(7L);
-        assertThat(response.officerName()).isEqualTo("Demo Officer");
+        assertThat(response.staffId()).isEqualTo(7L);
+        assertThat(response.staffName()).isEqualTo("Demo Claims Staff");
         assertThat(response.noteType()).isEqualTo(NoteType.GENERAL);
         assertThat(response.content()).isEqualTo("Workshop estimate looks inflated");
         assertThat(response.createdAt()).isEqualTo(NOW);
@@ -279,7 +293,7 @@ class AssessmentServiceTest {
     void aNoteOnAnUnknownClaimIsRejectedAndNotStored() {
         when(claimServiceClient.getClaim(99L)).thenThrow(new ClaimNotFoundException("Claim '99' was not found"));
 
-        assertThatThrownBy(() -> assessmentService.addNote(99L, new AddNoteRequest("hi"), OFFICER))
+        assertThatThrownBy(() -> assessmentService.addNote(99L, new AddNoteRequest("hi"), CLAIMS_STAFF))
                 .isInstanceOf(ClaimNotFoundException.class);
 
         verify(noteRepository, never()).save(any());
@@ -289,7 +303,7 @@ class AssessmentServiceTest {
     void claimServiceOutagesPropagateUntouched() {
         when(claimServiceClient.getClaim(10L)).thenThrow(new ClaimServiceUnavailableException("Claim service is unavailable"));
 
-        assertThatThrownBy(() -> assessmentService.addNote(10L, new AddNoteRequest("hi"), OFFICER))
+        assertThatThrownBy(() -> assessmentService.addNote(10L, new AddNoteRequest("hi"), CLAIMS_STAFF))
                 .isInstanceOf(ClaimServiceUnavailableException.class);
     }
 
@@ -298,15 +312,15 @@ class AssessmentServiceTest {
     @Test
     void theReviewTrailIsReadOldestFirstAfterConfirmingTheClaimExists() {
         when(claimServiceClient.getClaim(10L)).thenReturn(claim(10L, ClaimStatus.UNDER_REVIEW, 7L));
-        ClaimNote infoRequest = new ClaimNote(10L, 7L, "Demo Officer", NoteType.INFO_REQUEST, "Send photos", NOW.minusSeconds(300));
-        ClaimNote general = new ClaimNote(10L, 8L, "Other Officer", NoteType.GENERAL, "Called the workshop", NOW);
+        ClaimNote infoRequest = new ClaimNote(10L, 7L, "Demo Claims Staff", NoteType.INFO_REQUEST, "Send photos", NOW.minusSeconds(300));
+        ClaimNote general = new ClaimNote(10L, 8L, "Other Staff", NoteType.GENERAL, "Called the workshop", NOW);
         when(noteRepository.findByClaimIdOrderByCreatedAtAscIdAsc(10L)).thenReturn(List.of(infoRequest, general));
 
         List<NoteResponse> trail = assessmentService.getNotes(10L);
 
         assertThat(trail).extracting(NoteResponse::content).containsExactly("Send photos", "Called the workshop");
         assertThat(trail).extracting(NoteResponse::noteType).containsExactly(NoteType.INFO_REQUEST, NoteType.GENERAL);
-        assertThat(trail).extracting(NoteResponse::officerName).containsExactly("Demo Officer", "Other Officer");
+        assertThat(trail).extracting(NoteResponse::staffName).containsExactly("Demo Claims Staff", "Other Staff");
         assertThat(trail).extracting(NoteResponse::createdAt).containsExactly(NOW.minusSeconds(300), NOW);
         assertThat(trail).extracting(NoteResponse::claimId).containsOnly(10L);
 
@@ -353,8 +367,8 @@ class AssessmentServiceTest {
         return captor.getValue();
     }
 
-    private static RemoteClaim claim(Long id, ClaimStatus status, Long officerId) {
-        return new RemoteClaim(id, "CLM-2026-%06d".formatted(id), "POL-2026-1", "AUTO", status, new BigDecimal("2500.00"),
-                LocalDate.of(2026, 10, 1), officerId, NOW.minusSeconds(600), NOW);
+    private static RemoteClaim claim(Long id, ClaimStatus status, Long staffId) {
+        return new RemoteClaim(id, "CLM-2026-%06d".formatted(id), "POL-2026-1", "AUTO", "SG", status, new BigDecimal("2500.00"), "SGD",
+                LocalDate.of(2026, 10, 1), staffId, NOW.minusSeconds(600), NOW);
     }
 }

@@ -18,10 +18,10 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'New claim', icon: 'add_circle_outline', route: '/claimant/claims/new', roles: ['CLAIMANT'] },
   { label: 'Notifications', icon: 'notifications_none', route: '/claimant/notifications', roles: ['CLAIMANT'] },
 
-  { label: 'Work queue', icon: 'assignment', route: '/officer/work-queue', roles: ['OFFICER'] },
-  { label: 'Notifications', icon: 'notifications_none', route: '/officer/notifications', roles: ['OFFICER'] },
+  { label: 'Work queue', icon: 'assignment', route: '/staff/work-queue', roles: ['CLAIMS_STAFF'] },
+  { label: 'Notifications', icon: 'notifications_none', route: '/staff/notifications', roles: ['CLAIMS_STAFF'] },
 
-  { label: 'Dashboard', icon: 'dashboard', route: '/admin/dashboard', roles: ['ADMIN'] },
+  { label: 'Dashboard', icon: 'dashboard', route: '/manager/dashboard', roles: ['MANAGER'] },
 ];
 
 export const navItemsFor = (role: Role | null): readonly NavItem[] =>

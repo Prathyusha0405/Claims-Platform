@@ -18,7 +18,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("Assessment Service API")
-                        .description("Claim assignment, assessment, officer notes and dashboards for the Chubb APAC Claims Platform")
+                        .description("Claim assignment, assessment, staff notes and dashboards for the Chubb APAC Claims Platform")
                         .version("v1"))
                 .components(new Components()
                         .addSecuritySchemes(BEARER_SCHEME, new SecurityScheme()

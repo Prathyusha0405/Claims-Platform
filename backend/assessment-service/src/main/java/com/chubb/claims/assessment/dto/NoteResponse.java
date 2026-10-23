@@ -8,8 +8,8 @@ import java.time.Instant;
 public record NoteResponse(
         Long id,
         Long claimId,
-        Long officerId,
-        String officerName,
+        Long staffId,
+        String staffName,
         NoteType noteType,
         String content,
         Instant createdAt) {
@@ -18,8 +18,8 @@ public record NoteResponse(
         return new NoteResponse(
                 note.getId(),
                 note.getClaimId(),
-                note.getOfficerId(),
-                note.getOfficerName(),
+                note.getStaffId(),
+                note.getStaffName(),
                 note.getNoteType(),
                 note.getContent(),
                 note.getCreatedAt());

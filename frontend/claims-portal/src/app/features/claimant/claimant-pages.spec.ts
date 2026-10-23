@@ -44,7 +44,10 @@ describe('claimant pages', () => {
     async function fillValidForm(): Promise<void> {
       const loader = TestbedHarnessEnvironment.loader(fixture);
       await (await loader.getHarness(MatInputHarness.with({ selector: '[formControlName="policyNumber"]' }))).setValue('POL-2026-12345');
-      const select = await loader.getHarness(MatSelectHarness);
+      const market = await loader.getHarness(MatSelectHarness.with({ selector: '[formControlName="market"]' }));
+      await market.open();
+      await market.clickOptions({ text: 'Singapore' });
+      const select = await loader.getHarness(MatSelectHarness.with({ selector: '[formControlName="claimType"]' }));
       await select.open();
       await select.clickOptions({ text: 'Auto' });
       await (await loader.getHarness(MatDatepickerInputHarness)).setValue('3/4/2025');
@@ -58,14 +61,39 @@ describe('claimant pages', () => {
       await (await loader.getHarness(MatButtonHarness.with({ text: 'Submit claim' }))).click();
     }
 
+    it('shows the currency of the chosen market next to the amount, and never sends a currency', async () => {
+      const prefix = () => texts(fixture, '[matTextPrefix]');
+      const loader = TestbedHarnessEnvironment.loader(fixture);
+      expect(prefix()).toEqual(['']);
+      expect(root(fixture).textContent).toContain('Choose a market to see the currency');
+
+      const market = await loader.getHarness(MatSelectHarness.with({ selector: '[formControlName="market"]' }));
+      await market.open();
+      await market.clickOptions({ text: 'Japan' });
+      await settle(fixture);
+      expect(prefix()).toEqual(['JPY']);
+      expect(root(fixture).textContent).toContain('In JPY, the currency of the market');
+
+      await market.open();
+      await market.clickOptions({ text: 'Australia' });
+      await settle(fixture);
+      expect(prefix()).toEqual(['AUD']);
+
+      await fillValidForm();
+      await submit();
+      const body = http.expectOne('/api/claims').request.body;
+      expect(body.market).toBe('SG');
+      expect('currency' in body).toBe(false);
+    });
+
     it('shows what is missing and sends nothing when the form is empty', async () => {
       await submit();
       await settle(fixture);
 
       http.expectNone('/api/claims');
       expect(texts(fixture, 'mat-error')).toContain('This field is required');
-      // Policy, type, date, amount and description are required; the location is optional.
-      expect(texts(fixture, 'mat-error')).toEqual(Array(5).fill('This field is required'));
+      // Policy, market, type, date, amount and description are required; the location is optional.
+      expect(texts(fixture, 'mat-error')).toEqual(Array(6).fill('This field is required'));
     });
 
     it('sends the claim as the backend expects it, then opens its tracking page', async () => {
@@ -77,6 +105,7 @@ describe('claimant pages', () => {
       expect(request.request.body).toEqual({
         policyNumber: 'POL-2026-12345',
         claimType: 'AUTO',
+        market: 'SG',
         incidentDate: '2025-03-04',
         incidentLocation: 'Orchard Road',
         description: 'Rear-ended at a traffic light.',
@@ -155,7 +184,22 @@ describe('claimant pages', () => {
       expect(texts(fixture, 'tr[mat-row] td:first-child')).toEqual(['CLM-2026-000042', 'CLM-2026-000043']);
       expect(root(fixture).querySelector('a[href="/claimant/claims/CLM-2026-000043"]')).not.toBeNull();
       expect(texts(fixture, '.chip__label')).toEqual(['Submitted', 'Approved']);
-      expect(root(fixture).textContent).toContain('$120,000.50');
+      expect(texts(fixture, 'tr[mat-row] td:nth-child(3)')).toEqual(['Singapore', 'Singapore']);
+      expect(texts(fixture, 'tr[mat-row] td.numeric')).toEqual(['SGD 2,500.00', 'SGD 120,000.50']);
+    });
+
+    it('shows each claim’s amount in its own currency, yen without decimals', async () => {
+      const fixture = await render();
+      myClaimsRequest().flush(
+        page([
+          claimSummary({ market: 'JP', currency: 'JPY', claimAmount: 506850 }),
+          claimSummary({ id: 43, claimNumber: 'CLM-2026-000043', market: 'AU', currency: 'AUD', claimAmount: 3840 }),
+        ]),
+      );
+      await settle(fixture);
+
+      expect(texts(fixture, 'tr[mat-row] td.numeric')).toEqual(['JPY 506,850', 'AUD 3,840.00']);
+      expect(texts(fixture, 'tr[mat-row] td:nth-child(3)')).toEqual(['Japan', 'Australia']);
     });
 
     it('invites the claimant to file a first claim when there are none', async () => {
@@ -187,6 +231,26 @@ describe('claimant pages', () => {
       await new Promise((resolve) => setTimeout(resolve, 400));
       fixture.detectChanges();
       myClaimsRequest().flush(page([claimSummary()]));
+    });
+
+    it('searches within a market when one is chosen in the filter', async () => {
+      const fixture = await render();
+      myClaimsRequest().flush(page([claimSummary()]));
+      await settle(fixture);
+
+      const loader = TestbedHarnessEnvironment.loader(fixture);
+      const market = await loader.getHarness(MatSelectHarness.with({ selector: '[formControlName="market"]' }));
+      await market.open();
+      await market.clickOptions({ text: 'Japan' });
+      await new Promise((resolve) => setTimeout(resolve, 400)); // the search waits for typing to pause
+      fixture.detectChanges();
+
+      const search = http.expectOne((r) => r.url === '/api/claims/search');
+      expect(search.request.params.get('market')).toBe('JP');
+      search.flush(page([claimSummary({ market: 'JP' })]));
+      await settle(fixture);
+
+      expect(texts(fixture, 'tr[mat-row] td:nth-child(3)')).toEqual(['Japan']);
     });
 
     it('explains a failure and tries again on request', async () => {
@@ -221,7 +285,7 @@ describe('claimant pages', () => {
       claimRequest().flush(
         claimDetail({
           status: 'UNDER_REVIEW',
-          assignedOfficerId: 2,
+          assignedStaffId: 2,
           history: [
             historyEntry(),
             historyEntry({
@@ -229,7 +293,7 @@ describe('claimant pages', () => {
               fromStatus: 'SUBMITTED',
               toStatus: 'UNDER_REVIEW',
               performedBy: 2,
-              performedByRole: 'OFFICER',
+              performedByRole: 'CLAIMS_STAFF',
               createdAt: '2026-10-17T03:00:00Z',
             }),
           ],
@@ -240,13 +304,13 @@ describe('claimant pages', () => {
       expect(texts(fixture, 'h1')).toEqual(['CLM-2026-000042']);
       expect(texts(fixture, '.progress__step[aria-current="step"] .progress__label')[0]).toContain('Under review');
       expect(root(fixture).textContent).toContain('POL-2026-12345');
-      expect(root(fixture).textContent).toContain('$2,500.00');
-      expect(texts(fixture, '.timeline__label')).toEqual(['Claim submitted', 'Assigned to a claims officer']);
-      expect(root(fixture).textContent).toContain('Claims officer');
+      expect(texts(fixture, '.fact dd')).toContain('SGD 2,500.00');
+      expect(texts(fixture, '.timeline__label')).toEqual(['Claim submitted', 'Assigned to a claims staff member']);
+      expect(root(fixture).textContent).toContain('Claims staff');
       expect(root(fixture).querySelector('textarea')).toBeNull(); // nothing to answer
     });
 
-    it('shows the officer’s question and sends the claimant’s reply, then reloads the claim', async () => {
+    it('shows the claims staff member’s question and sends the claimant’s reply, then reloads the claim', async () => {
       const fixture = await render();
       claimRequest().flush(
         claimDetail({
@@ -256,7 +320,7 @@ describe('claimant pages', () => {
             historyEntry({
               eventType: 'ADDITIONAL_INFO_REQUESTED',
               toStatus: 'MORE_INFO_REQUIRED',
-              performedByRole: 'OFFICER',
+              performedByRole: 'CLAIMS_STAFF',
               details: 'Please send a repair estimate.',
             }),
           ],

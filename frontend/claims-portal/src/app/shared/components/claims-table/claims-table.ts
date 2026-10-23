@@ -1,4 +1,4 @@
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -8,12 +8,12 @@ import { MatSortModule, Sort } from '@angular/material/sort';
 import { MatTableModule } from '@angular/material/table';
 import { RouterLink } from '@angular/router';
 
-import { environment } from '@env/environment';
-import { CLAIM_TYPE_LABELS, ClaimSummary, ClaimType } from '@shared/models/claim';
+import { CLAIM_TYPE_LABELS, ClaimSummary, ClaimType, Market, MARKET_LABELS } from '@shared/models/claim';
 import { Page, PAGE_SIZE_OPTIONS, PageRequest } from '@shared/models/page';
+import { MoneyPipe } from '@shared/pipes/money-pipe';
 import { StatusChip } from '../status-chip/status-chip';
 
-const BASE_COLUMNS = ['claimNumber', 'policyNumber', 'claimType', 'status', 'claimAmount', 'incidentDate', 'createdAt'];
+const BASE_COLUMNS = ['claimNumber', 'policyNumber', 'market', 'claimType', 'status', 'claimAmount', 'incidentDate', 'createdAt'];
 
 /**
  * A page of claims with server-side sorting and paging. It owns no data: the page that uses it holds the
@@ -22,7 +22,6 @@ const BASE_COLUMNS = ['claimNumber', 'policyNumber', 'claimType', 'status', 'cla
  */
 @Component({
   imports: [
-    CurrencyPipe,
     DatePipe,
     MatButtonModule,
     MatIconModule,
@@ -30,6 +29,7 @@ const BASE_COLUMNS = ['claimNumber', 'policyNumber', 'claimType', 'status', 'cla
     MatProgressBarModule,
     MatSortModule,
     MatTableModule,
+    MoneyPipe,
     RouterLink,
     StatusChip,
   ],
@@ -58,11 +58,15 @@ export class ClaimsTable {
 
   protected readonly columns = computed(() => (this.actionLabel() === null ? BASE_COLUMNS : [...BASE_COLUMNS, 'action']));
   protected readonly pageSizes = PAGE_SIZE_OPTIONS;
-  protected readonly currency = environment.reportingCurrency;
 
   /** The work queue is served by assessment-service, which sends the type as a plain string; show it even if unknown. */
   protected typeLabel(type: string): string {
     return CLAIM_TYPE_LABELS[type as ClaimType] ?? type;
+  }
+
+  /** Likewise for the market: the work queue's code is shown as a name when known. */
+  protected marketLabel(market: string): string {
+    return MARKET_LABELS[market as Market] ?? market;
   }
 
   protected sortBy(sort: Sort): void {

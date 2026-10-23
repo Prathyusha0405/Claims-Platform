@@ -1,0 +1,17 @@
+<div class="assigned">
+  <app-claim-filters (criteriaChange)="search($event)" />
+
+  @if (claims.error(); as error) {
+    <app-load-error [error]="error" subject="your claims" (retry)="reload()" />
+  } @else {
+    <app-claims-table
+      label="Claims assigned to me"
+      linkBase="/staff/claims"
+      [page]="claims.value()"
+      [request]="request()"
+      [loading]="claims.loading()"
+      [emptyMessage]="emptyMessage()"
+      (requestChange)="request.set($event)"
+    />
+  }
+</div>

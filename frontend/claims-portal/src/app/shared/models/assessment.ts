@@ -1,14 +1,14 @@
 import { ClaimStatus } from './claim';
 
-/** The officer's assessment of a claim plus the claim's status right after the action (assessment-service). */
+/** The claims staff member's assessment of a claim plus the claim's status right after the action (assessment-service). */
 export interface Assessment {
   claimId: number;
   claimNumber: string;
   claimStatus: ClaimStatus;
-  officerId: number;
-  officerName: string | null;
+  staffId: number;
+  staffName: string | null;
   assignedAt: string;
-  /** Set once the officer approves or rejects; null while the claim is being reviewed. */
+  /** Set once the staff member approves or rejects; null while the claim is being reviewed. */
   decision: 'APPROVED' | 'REJECTED' | null;
   decisionReason: string | null;
   decidedAt: string | null;
@@ -27,8 +27,8 @@ export const NOTE_TYPE_LABELS: Readonly<Record<NoteType, string>> = {
 export interface ClaimNote {
   id: number;
   claimId: number;
-  officerId: number;
-  officerName: string | null;
+  staffId: number;
+  staffName: string | null;
   noteType: NoteType;
   content: string;
   createdAt: string;

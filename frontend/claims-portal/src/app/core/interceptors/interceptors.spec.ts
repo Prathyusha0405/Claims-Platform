@@ -124,14 +124,14 @@ describe('HTTP interceptors', () => {
     });
 
     it('passes 404, 409 and 503 on for the page to show in context, without signing out or a toast', () => {
-      signInAs('OFFICER');
+      signInAs('CLAIMS_STAFF');
       const errors: ApiError[] = [];
-      for (const url of ['/api/claims/CLM-1', '/api/officer/claims/1/assign', '/api/dashboard/status-summary']) {
+      for (const url of ['/api/claims/CLM-1', '/api/staff/claims/1/assign', '/api/dashboard/status-summary']) {
         client.get(url).subscribe({ error: (e: ApiError) => errors.push(e) });
       }
 
       http.expectOne('/api/claims/CLM-1').flush({ message: 'not found' }, { status: 404, statusText: 'Not Found' });
-      http.expectOne('/api/officer/claims/1/assign').flush({ message: 'taken' }, { status: 409, statusText: 'Conflict' });
+      http.expectOne('/api/staff/claims/1/assign').flush({ message: 'taken' }, { status: 409, statusText: 'Conflict' });
       http.expectOne('/api/dashboard/status-summary').flush(null, { status: 503, statusText: 'Service Unavailable' });
 
       expect(errors.map((e) => e.status)).toEqual([404, 409, 503]);
@@ -181,9 +181,9 @@ describe('HTTP interceptors', () => {
     it('tells the user about a 403 and keeps them where they are', () => {
       signInAs('CLAIMANT');
       let error: unknown;
-      client.post('/api/officer/claims/1/approve', {}).subscribe({ error: (e: unknown) => (error = e) });
+      client.post('/api/staff/claims/1/approve', {}).subscribe({ error: (e: unknown) => (error = e) });
 
-      http.expectOne('/api/officer/claims/1/approve').flush({ message: 'Forbidden' }, { status: 403, statusText: 'Forbidden' });
+      http.expectOne('/api/staff/claims/1/approve').flush({ message: 'Forbidden' }, { status: 403, statusText: 'Forbidden' });
 
       expect(notify.error).toHaveBeenCalledWith('You do not have permission to do that.');
       expect((error as ApiError).isForbidden).toBe(true);

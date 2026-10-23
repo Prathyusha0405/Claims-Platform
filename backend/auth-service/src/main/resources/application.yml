@@ -1,5 +1,5 @@
 server:
-  port: 8081
+  port: 8084
 
 spring:
   application:
@@ -40,6 +40,6 @@ app:
     secret: ${JWT_SECRET:chubb-claims-dev-only-secret-key-change-me-0123456789}
     expiration-ms: 3600000
   seed:
-    # Development only: creates a demo OFFICER (officer@chubb.com) and ADMIN (admin@chubb.com) at startup.
+    # Development only: creates a demo CLAIMS_STAFF (staff@chubb.com) and MANAGER (manager@chubb.com) at startup.
     # Public registration can only create CLAIMANTs, so this is how staff accounts exist locally.
     demo-users: true

@@ -12,7 +12,7 @@
 
     <artifactId>assessment-service</artifactId>
     <name>assessment-service</name>
-    <description>Claim assignment, assessment, officer notes and dashboards for the Chubb APAC Claims Platform</description>
+    <description>Claim assignment, assessment, staff notes and dashboards for the Chubb APAC Claims Platform</description>
 
     <dependencies>
         <dependency>

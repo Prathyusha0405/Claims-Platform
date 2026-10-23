@@ -2,7 +2,7 @@
   <header class="page__header">
     <div>
       <h1 class="page__title">New claim</h1>
-      <p class="page__subtitle">Tell us what happened. An officer will review your claim and keep you updated here.</p>
+      <p class="page__subtitle">Tell us what happened. A claims staff member will review your claim and keep you updated here.</p>
     </div>
   </header>
 
@@ -16,6 +16,17 @@
         <mat-label>Policy number</mat-label>
         <input matInput formControlName="policyNumber" placeholder="POL-2026-12345" autocomplete="off" />
         <mat-error>{{ error(form.controls.policyNumber) }}</mat-error>
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Market</mat-label>
+        <mat-select formControlName="market">
+          @for (market of markets; track market) {
+            <mat-option [value]="market">{{ marketLabels[market] }}</mat-option>
+          }
+        </mat-select>
+        <mat-hint>The country the claim is filed in</mat-hint>
+        <mat-error>{{ error(form.controls.market) }}</mat-error>
       </mat-form-field>
 
       <mat-form-field>
@@ -39,12 +50,13 @@
 
       <mat-form-field>
         <mat-label>Amount claimed</mat-label>
-        <span matTextPrefix>{{ currency }}&nbsp;</span>
+        <span matTextPrefix>{{ currency() }}@if (currency()) {&nbsp;}</span>
         <input matInput type="number" inputmode="decimal" step="0.01" min="0.01" formControlName="claimAmount" />
+        <mat-hint>{{ currency() ? 'In ' + currency() + ', the currency of the market' : 'Choose a market to see the currency' }}</mat-hint>
         <mat-error>{{ error(form.controls.claimAmount) }}</mat-error>
       </mat-form-field>
 
-      <mat-form-field class="form-grid__wide">
+      <mat-form-field>
         <mat-label>Where did it happen? (optional)</mat-label>
         <input matInput formControlName="incidentLocation" autocomplete="off" />
         <mat-hint align="end">{{ form.controls.incidentLocation.value.length }} / 200</mat-hint>

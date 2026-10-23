@@ -18,16 +18,16 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 /**
  * Stateless, bearer-token API security. Tokens are issued by auth-service; this service only validates them.
  * <ul>
- *   <li>{@code /api/officer/**}: OFFICER only (work queue, assignment, decisions, notes).</li>
- *   <li>{@code /api/dashboard/**}: ADMIN only.</li>
+ *   <li>{@code /api/staff/**}: CLAIMS_STAFF only (work queue, assignment, decisions, notes).</li>
+ *   <li>{@code /api/dashboard/**}: MANAGER only.</li>
  * </ul>
  */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private static final String OFFICER = "OFFICER";
-    private static final String ADMIN = "ADMIN";
+    private static final String CLAIMS_STAFF = "CLAIMS_STAFF";
+    private static final String MANAGER = "MANAGER";
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtService jwtService, ObjectMapper objectMapper)
@@ -49,8 +49,8 @@ public class SecurityConfig {
                                 paths.matcher("/v3/api-docs/**"),
                                 paths.matcher("/h2-console/**"),
                                 paths.matcher("/error")).permitAll()
-                        .requestMatchers(paths.matcher("/api/officer/**")).hasRole(OFFICER)
-                        .requestMatchers(paths.matcher("/api/dashboard/**")).hasRole(ADMIN)
+                        .requestMatchers(paths.matcher("/api/staff/**")).hasRole(CLAIMS_STAFF)
+                        .requestMatchers(paths.matcher("/api/dashboard/**")).hasRole(MANAGER)
                         .anyRequest().authenticated())
                 .addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
 

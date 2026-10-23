@@ -42,7 +42,7 @@ class NotificationApiIntegrationTest {
     @Test
     void aClaimantFollowsTheirClaimThroughTheInboxAndClearsTheBadge() throws Exception {
         long jane = randomUserId();
-        long officer = randomUserId();
+        long staffMember = randomUserId();
         JsonNode claim = submitClaim(jane);
         String claimNumber = claim.get("claimNumber").asText();
 
@@ -57,8 +57,8 @@ class NotificationApiIntegrationTest {
                 .andExpect(jsonPath("$.content[0].read").value(false));
         assertThat(unreadCount(jane, Role.CLAIMANT)).isEqualTo(1);
 
-        // An officer takes it: a second notification, listed first.
-        assign(officer, claim.get("id").asLong());
+        // A staff member takes it: a second notification, listed first.
+        assign(staffMember, claim.get("id").asLong());
         mockMvc.perform(get("/api/notifications").header(HttpHeaders.AUTHORIZATION, bearer(jane, Role.CLAIMANT)))
                 .andExpect(jsonPath("$.totalElements").value(2))
                 .andExpect(jsonPath("$.content[0].eventType").value("CLAIM_ASSIGNED"))
@@ -116,27 +116,27 @@ class NotificationApiIntegrationTest {
     }
 
     @Test
-    void theOfficerIsToldWhenTheClaimantAnswersAnInformationRequest() throws Exception {
+    void theStaffMemberIsToldWhenTheClaimantAnswersAnInformationRequest() throws Exception {
         long jane = randomUserId();
-        long officer = randomUserId();
+        long staffMember = randomUserId();
         long admin = randomUserId();
         JsonNode claim = submitClaim(jane);
         long claimId = claim.get("id").asLong();
 
-        assign(officer, claimId);
-        officerAction(officer, claimId, "request-info", "{\"message\":\"Please send the invoice\"}").andExpect(status().isOk());
+        assign(staffMember, claimId);
+        staffAction(staffMember, claimId, "request-info", "{\"message\":\"Please send the invoice\"}").andExpect(status().isOk());
         mockMvc.perform(post("/api/claims/" + claimId + "/additional-info")
                         .header(HttpHeaders.AUTHORIZATION, bearer(jane, Role.CLAIMANT))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"message\":\"Invoice attached\"}"))
                 .andExpect(status().isOk());
 
-        // The officer had nothing before the claimant replied; staff use the same endpoints as claimants.
-        mockMvc.perform(get("/api/notifications").header(HttpHeaders.AUTHORIZATION, bearer(officer, Role.OFFICER)))
+        // The staff member had nothing before the claimant replied; staff use the same endpoints as claimants.
+        mockMvc.perform(get("/api/notifications").header(HttpHeaders.AUTHORIZATION, bearer(staffMember, Role.CLAIMS_STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].eventType").value("ADDITIONAL_INFO_RECEIVED"))
                 .andExpect(jsonPath("$.content[0].claimNumber").value(claim.get("claimNumber").asText()));
-        assertThat(unreadCount(officer, Role.OFFICER)).isEqualTo(1);
+        assertThat(unreadCount(staffMember, Role.CLAIMS_STAFF)).isEqualTo(1);
 
         // The claimant's story: submitted, assigned, info requested, info received.
         mockMvc.perform(get("/api/notifications").param("sort", "createdAt,asc")
@@ -144,8 +144,8 @@ class NotificationApiIntegrationTest {
                 .andExpect(jsonPath("$.content[*].eventType").value(org.hamcrest.Matchers.contains(
                         "CLAIM_CREATED", "CLAIM_ASSIGNED", "ADDITIONAL_INFO_REQUESTED", "ADDITIONAL_INFO_RECEIVED")));
 
-        // Admins are never notified, but they are not shut out of the endpoints either.
-        mockMvc.perform(get("/api/notifications").header(HttpHeaders.AUTHORIZATION, bearer(admin, Role.ADMIN)))
+        // Managers are never notified, but they are not shut out of the endpoints either.
+        mockMvc.perform(get("/api/notifications").header(HttpHeaders.AUTHORIZATION, bearer(admin, Role.MANAGER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(0));
     }
@@ -168,19 +168,19 @@ class NotificationApiIntegrationTest {
         String body = mockMvc.perform(post("/api/claims").header(HttpHeaders.AUTHORIZATION, bearer(claimantId, Role.CLAIMANT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"policyNumber":"POL-NOTIFY-1","claimType":"HOME","incidentDate":"2026-10-15",
+                                {"policyNumber":"POL-NOTIFY-1","claimType":"HOME","market":"SG","incidentDate":"2026-10-15",
                                  "description":"Burst pipe in the kitchen","claimAmount":1800.00}"""))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(body);
     }
 
-    private void assign(long officerId, long claimId) throws Exception {
-        officerAction(officerId, claimId, "assign", null).andExpect(status().isOk());
+    private void assign(long staffId, long claimId) throws Exception {
+        staffAction(staffId, claimId, "assign", null).andExpect(status().isOk());
     }
 
-    private ResultActions officerAction(long officerId, long claimId, String action, String body) throws Exception {
+    private ResultActions staffAction(long staffId, long claimId, String action, String body) throws Exception {
         var request = post("/api/internal/claims/" + claimId + "/" + action)
-                .header(HttpHeaders.AUTHORIZATION, bearer(officerId, Role.OFFICER));
+                .header(HttpHeaders.AUTHORIZATION, bearer(staffId, Role.CLAIMS_STAFF));
         if (body != null) {
             request.contentType(MediaType.APPLICATION_JSON).content(body);
         }

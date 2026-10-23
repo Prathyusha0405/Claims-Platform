@@ -65,7 +65,7 @@ class LocalClaimEventPublisherTest {
     }
 
     @Test
-    void publishRecordsStatusChangesAndNotifiesTheOfficerToo() {
+    void publishRecordsStatusChangesAndNotifiesTheStaffMemberToo() {
         publisher.publish(new ClaimEvent(ClaimEventType.ADDITIONAL_INFO_RECEIVED, 10L, "CLM-2026-000001", 5L, 7L,
                 ClaimStatus.MORE_INFO_REQUIRED, ClaimStatus.UNDER_REVIEW, 5L, "CLAIMANT", "Estimate attached", NOW));
 

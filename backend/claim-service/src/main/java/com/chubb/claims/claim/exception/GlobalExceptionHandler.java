@@ -97,8 +97,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return respond(HttpStatus.NOT_FOUND, ex.getMessage(), request, null, HttpHeaders.EMPTY);
     }
 
-    @ExceptionHandler(NotAssignedOfficerException.class)
-    public ResponseEntity<Object> handleNotAssignedOfficer(NotAssignedOfficerException ex, WebRequest request) {
+    @ExceptionHandler(NotAssignedStaffException.class)
+    public ResponseEntity<Object> handleNotAssignedStaff(NotAssignedStaffException ex, WebRequest request) {
         return respond(HttpStatus.FORBIDDEN, ex.getMessage(), request, null, HttpHeaders.EMPTY);
     }
 

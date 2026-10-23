@@ -52,10 +52,10 @@ describe('route table', () => {
         'claimant/claims/new',
         'claimant/claims/:claimNumber',
         'claimant/notifications',
-        'officer/work-queue',
-        'officer/claims/:claimNumber',
-        'officer/notifications',
-        'admin/dashboard',
+        'staff/work-queue',
+        'staff/claims/:claimNumber',
+        'staff/notifications',
+        'manager/dashboard',
         'forbidden',
         '**',
       ].sort(),
@@ -64,7 +64,7 @@ describe('route table', () => {
 
   it('lazy-loads every page and every feature area; nothing is bundled eagerly', () => {
     expect(flat.filter((f) => f.route.component)).toEqual([]);
-    for (const area of ['auth', 'claimant', 'officer', 'admin']) {
+    for (const area of ['auth', 'claimant', 'staff', 'manager']) {
       expect(find(area).loadChildren, `${area} must be a lazy area`).toBeTypeOf('function');
     }
   });
@@ -88,7 +88,7 @@ describe('route table', () => {
     const shell = routes.find((r) => r.path === '' && r.children)!;
     expect(shell.canActivate).toEqual([authGuard]);
 
-    for (const area of ['claimant', 'officer', 'admin']) {
+    for (const area of ['claimant', 'staff', 'manager']) {
       expect(find(area).canMatch, `role gate of ${area}`).toHaveLength(1);
     }
     expect(find('forbidden').canMatch).toBeUndefined(); // reachable by any signed-in user
@@ -103,8 +103,8 @@ describe('route table', () => {
     const landing: Record<string, string> = {
       auth: 'login',
       claimant: 'my-claims',
-      officer: 'work-queue',
-      admin: 'dashboard',
+      staff: 'work-queue',
+      manager: 'dashboard',
     };
     for (const [area, target] of Object.entries(landing)) {
       const children = await (find(area).loadChildren as LazyRoutes)();

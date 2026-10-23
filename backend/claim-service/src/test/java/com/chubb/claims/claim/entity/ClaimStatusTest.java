@@ -59,7 +59,7 @@ class ClaimStatusTest {
     void claimMovesAlongTheLifecycleAndRecordsWhen() {
         Instant created = Instant.parse("2026-10-22T06:00:00Z");
         Instant reviewed = created.plusSeconds(60);
-        Claim claim = new Claim("CLM-2026-000001", "POL-1", 5L, "Jane", "jane@example.com", ClaimType.AUTO,
+        Claim claim = new Claim("CLM-2026-000001", "POL-1", 5L, "Jane", "jane@example.com", ClaimType.AUTO, Market.SG,
                 LocalDate.of(2026, 10, 1), null, "desc", new BigDecimal("100.00"), created);
 
         claim.transitionTo(UNDER_REVIEW, reviewed);
@@ -72,7 +72,7 @@ class ClaimStatusTest {
     @Test
     void claimRefusesAnIllegalTransitionAndStaysUnchanged() {
         Instant created = Instant.parse("2026-10-22T06:00:00Z");
-        Claim claim = new Claim("CLM-2026-000001", "POL-1", 5L, "Jane", "jane@example.com", ClaimType.AUTO,
+        Claim claim = new Claim("CLM-2026-000001", "POL-1", 5L, "Jane", "jane@example.com", ClaimType.AUTO, Market.SG,
                 LocalDate.of(2026, 10, 1), null, "desc", new BigDecimal("100.00"), created);
 
         assertThatThrownBy(() -> claim.transitionTo(SETTLED, created.plusSeconds(60)))

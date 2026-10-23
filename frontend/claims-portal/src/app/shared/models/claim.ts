@@ -43,6 +43,35 @@ export const CLAIM_TYPE_LABELS: Readonly<Record<ClaimType, string>> = {
   OTHER: 'Other',
 };
 
+/** The markets Chubb APAC writes motor and property business in, by ISO country code. */
+export type Market = 'AU' | 'HK' | 'JP' | 'MY' | 'NZ' | 'SG';
+
+export const MARKETS: readonly Market[] = ['AU', 'HK', 'JP', 'MY', 'NZ', 'SG'];
+
+export const MARKET_LABELS: Readonly<Record<Market, string>> = {
+  AU: 'Australia',
+  HK: 'Hong Kong',
+  JP: 'Japan',
+  MY: 'Malaysia',
+  NZ: 'New Zealand',
+  SG: 'Singapore',
+};
+
+/** The currencies the six markets trade in (ISO 4217). A claim's amount is always in the currency of its market. */
+export type Currency = 'AUD' | 'HKD' | 'JPY' | 'MYR' | 'NZD' | 'SGD';
+
+export const CURRENCIES: readonly Currency[] = ['AUD', 'HKD', 'JPY', 'MYR', 'NZD', 'SGD'];
+
+/** Which currency each market uses. The server applies the same rule when a claim is filed. */
+export const MARKET_CURRENCY: Readonly<Record<Market, Currency>> = {
+  AU: 'AUD',
+  HK: 'HKD',
+  JP: 'JPY',
+  MY: 'MYR',
+  NZ: 'NZD',
+  SG: 'SGD',
+};
+
 /** Things that happen to a claim; each is audited in the claim history and may notify someone. */
 export type ClaimEventType =
   | 'CLAIM_CREATED'
@@ -54,7 +83,7 @@ export type ClaimEventType =
 
 export const CLAIM_EVENT_LABELS: Readonly<Record<ClaimEventType, string>> = {
   CLAIM_CREATED: 'Claim submitted',
-  CLAIM_ASSIGNED: 'Assigned to a claims officer',
+  CLAIM_ASSIGNED: 'Assigned to a claims staff member',
   CLAIM_APPROVED: 'Claim approved',
   CLAIM_REJECTED: 'Claim rejected',
   ADDITIONAL_INFO_REQUESTED: 'More information requested',
@@ -77,11 +106,14 @@ export interface ClaimSummary {
   claimNumber: string;
   policyNumber: string;
   claimType: ClaimType;
+  market: Market;
   status: ClaimStatus;
+  /** In `currency`, the currency of the claim's market. */
   claimAmount: number;
+  currency: Currency;
   /** `yyyy-MM-dd`. */
   incidentDate: string;
-  assignedOfficerId: number | null;
+  assignedStaffId: number | null;
   /** ISO-8601 instants. */
   createdAt: string;
   updatedAt: string;
@@ -94,7 +126,7 @@ export interface ClaimHistoryEntry {
   toStatus: ClaimStatus | null;
   performedBy: number | null;
   performedByRole: string | null;
-  /** Free text: an officer's comment, a rejection reason, the claimant's reply. */
+  /** Free text: a staff member's comment, a rejection reason, the claimant's reply. */
   details: string | null;
   createdAt: string;
 }
@@ -113,6 +145,7 @@ export interface ClaimDetail extends ClaimSummary {
 export interface CreateClaimRequest {
   policyNumber: string;
   claimType: ClaimType;
+  market: Market;
   /** `yyyy-MM-dd`, not in the future. */
   incidentDate: string;
   incidentLocation?: string;
@@ -125,11 +158,13 @@ export interface ClaimSearchCriteria {
   claimNumber?: string;
   policyNumber?: string;
   status?: ClaimStatus;
+  /** Exact market, by country code. */
+  market?: Market;
   /** Submitted on or after this date, `yyyy-MM-dd`. */
   fromDate?: string;
   /** Submitted on or before this date, `yyyy-MM-dd`. */
   toDate?: string;
-  assignedOfficerId?: number;
+  assignedStaffId?: number;
 }
 
 /** The sortable columns claim-service accepts (`ClaimController`). */
@@ -138,6 +173,7 @@ export type ClaimSortField =
   | 'updatedAt'
   | 'claimNumber'
   | 'policyNumber'
+  | 'market'
   | 'status'
   | 'claimAmount'
   | 'incidentDate';

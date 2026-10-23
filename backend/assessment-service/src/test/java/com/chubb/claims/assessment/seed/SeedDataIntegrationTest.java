@@ -67,16 +67,16 @@ class SeedDataIntegrationTest {
     }
 
     @Test
-    void officersAreTheFiveStaffMembersAuthServiceSeeds() {
+    void assessedStaffAreTheFiveStaffMembersAuthServiceSeeds() {
         Map<Long, String> names = new TreeMap<>();
-        jdbc.queryForList("SELECT officer_id, MAX(officer_name) AS officer_name FROM claim_assessments GROUP BY officer_id")
-                .forEach(row -> names.put(((Number) row.get("OFFICER_ID")).longValue(), (String) row.get("OFFICER_NAME")));
+        jdbc.queryForList("SELECT staff_id, MAX(staff_name) AS staff_name FROM claim_assessments GROUP BY staff_id")
+                .forEach(row -> names.put(((Number) row.get("STAFF_ID")).longValue(), (String) row.get("STAFF_NAME")));
 
         assertThat(names).containsExactly(Map.entry(2L, "Olivia Bennett"), Map.entry(3L, "Kenji Sato"), Map.entry(4L, "Mei Lin Chua"),
                 Map.entry(5L, "Rajesh Kumar"), Map.entry(6L, "Grace Wong"));
-        // each officer is known by exactly one name
-        assertThat(count("SELECT COUNT(*) FROM (SELECT officer_id FROM claim_assessments GROUP BY officer_id HAVING COUNT(DISTINCT officer_name) > 1)")).isZero();
-        assertThat(count("SELECT COUNT(*) FROM claim_notes WHERE officer_id NOT BETWEEN 2 AND 6")).isZero();
+        // each staff member is known by exactly one name
+        assertThat(count("SELECT COUNT(*) FROM (SELECT staff_id FROM claim_assessments GROUP BY staff_id HAVING COUNT(DISTINCT staff_name) > 1)")).isZero();
+        assertThat(count("SELECT COUNT(*) FROM claim_notes WHERE staff_id NOT BETWEEN 2 AND 6")).isZero();
     }
 
     @Test
@@ -102,12 +102,12 @@ class SeedDataIntegrationTest {
     }
 
     @Test
-    void decisionAndInfoRequestNotesBelongToTheOfficerWhoHoldsTheClaim() {
+    void decisionAndInfoRequestNotesBelongToTheStaffMemberWhoHoldsTheClaim() {
         assertThat(count("SELECT COUNT(*) FROM claim_notes n JOIN claim_assessments a ON a.claim_id = n.claim_id "
-                + "WHERE n.note_type <> 'GENERAL' AND n.officer_id <> a.officer_id")).isZero();
+                + "WHERE n.note_type <> 'GENERAL' AND n.staff_id <> a.staff_id")).isZero();
         assertThat(count("SELECT COUNT(*) FROM claim_notes WHERE note_type <> 'GENERAL' AND claim_id NOT IN (SELECT claim_id FROM claim_assessments)")).isZero();
         assertThat(count("SELECT COUNT(*) FROM claim_notes n JOIN claim_assessments a ON a.claim_id = n.claim_id "
-                + "WHERE n.note_type = 'GENERAL' AND n.officer_id <> a.officer_id")).isZero();
+                + "WHERE n.note_type = 'GENERAL' AND n.staff_id <> a.staff_id")).isZero();
     }
 
     @Test
@@ -119,10 +119,10 @@ class SeedDataIntegrationTest {
     }
 
     @Test
-    void everyOfficerHasWorkSoTheWorkloadDashboardShowsAllFive() {
-        List<Long> perOfficer = jdbc.queryForList("SELECT COUNT(*) FROM claim_assessments GROUP BY officer_id ORDER BY officer_id", Long.class);
+    void everyStaffMemberHasWorkSoTheWorkloadDashboardShowsAllFive() {
+        List<Long> perStaff = jdbc.queryForList("SELECT COUNT(*) FROM claim_assessments GROUP BY staff_id ORDER BY staff_id", Long.class);
 
-        assertThat(perOfficer).containsExactly(53L, 23L, 30L, 23L, 21L);
+        assertThat(perStaff).containsExactly(53L, 23L, 30L, 23L, 21L);
     }
 
     @Test
@@ -138,7 +138,7 @@ class SeedDataIntegrationTest {
         });
         assertThat(notes).hasSize(200);
         assertThat(notes).extracting(ClaimNote::getNoteType).containsOnly(NoteType.values());
-        assertThat(assessmentRepository.findOfficerNames()).extracting(ClaimAssessmentRepository.OfficerName::getOfficerName)
+        assertThat(assessmentRepository.findStaffNames()).extracting(ClaimAssessmentRepository.StaffName::getStaffName)
                 .containsExactlyInAnyOrder("Olivia Bennett", "Kenji Sato", "Mei Lin Chua", "Rajesh Kumar", "Grace Wong");
     }
 

@@ -22,7 +22,7 @@ export class ClaimApi {
     return this.http.get<Page<ClaimSummary>>(API.claims.myClaims, { params: toParams(pageParams(page)) });
   }
 
-  /** Claimants only ever find their own claims; officers and admins search all of them. */
+  /** Claimants only ever find their own claims; claims staff and managers search all of them. */
   search(criteria: ClaimSearchCriteria, page: PageRequest): Observable<Page<ClaimSummary>> {
     return this.http.get<Page<ClaimSummary>>(API.claims.search, {
       params: toParams({ ...criteria, ...pageParams(page) }),
@@ -34,7 +34,7 @@ export class ClaimApi {
     return this.http.get<ClaimDetail>(API.claims.byNumber(claimNumber));
   }
 
-  /** CLAIMANT only: the answer to an officer's request; moves the claim back to UNDER_REVIEW. */
+  /** CLAIMANT only: the answer to a claims staff member's request; moves the claim back to UNDER_REVIEW. */
   submitAdditionalInfo(id: number, message: string): Observable<ClaimDetail> {
     return this.http.post<ClaimDetail>(API.claims.additionalInfo(id), { message });
   }

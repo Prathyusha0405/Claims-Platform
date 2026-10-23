@@ -1,0 +1,14 @@
+:host {
+  display: block;
+}
+
+.queue {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.queue__market {
+  width: 240px;
+  max-width: 100%;
+}

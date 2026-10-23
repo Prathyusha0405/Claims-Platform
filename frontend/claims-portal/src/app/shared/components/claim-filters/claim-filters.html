@@ -21,6 +21,16 @@
   </mat-form-field>
 
   <mat-form-field subscriptSizing="dynamic">
+    <mat-label>Market</mat-label>
+    <mat-select formControlName="market">
+      <mat-option value="">All markets</mat-option>
+      @for (market of markets; track market) {
+        <mat-option [value]="market">{{ marketLabels[market] }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field subscriptSizing="dynamic">
     <mat-label>Submitted between</mat-label>
     <mat-date-range-input [rangePicker]="range">
       <input matStartDate formControlName="fromDate" placeholder="From" aria-label="Submitted from" />

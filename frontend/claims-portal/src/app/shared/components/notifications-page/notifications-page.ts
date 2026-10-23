@@ -22,7 +22,7 @@ type Filter = 'all' | 'unread';
 const PAGE_SIZES = [10, 20, 50];
 
 /**
- * The signed-in user's notification inbox, shared by claimants and officers. Each entry links to its claim in the
+ * The signed-in user's notification inbox, shared by claimants and claims staff. Each entry links to its claim in the
  * user's own area; opening one marks it read.
  */
 @Component({
@@ -56,8 +56,8 @@ export class NotificationsPage {
     ({ unreadOnly, request }) => this.api.list(unreadOnly, request),
   );
   protected readonly unreadCount = this.store.unreadCount;
-  /** Officers review claims in their own area; claimants track them in theirs. */
-  protected readonly claimBase = computed(() => (this.auth.role() === 'OFFICER' ? '/officer/claims' : '/claimant/claims'));
+  /** Claims staff review claims in their own area; claimants track them in theirs. */
+  protected readonly claimBase = computed(() => (this.auth.role() === 'CLAIMS_STAFF' ? '/staff/claims' : '/claimant/claims'));
   protected readonly icons = CLAIM_EVENT_ICONS;
   protected readonly pageSizes = PAGE_SIZES;
 

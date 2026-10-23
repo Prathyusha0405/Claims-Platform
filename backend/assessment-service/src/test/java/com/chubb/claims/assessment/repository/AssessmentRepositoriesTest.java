@@ -29,7 +29,7 @@ class AssessmentRepositoriesTest {
 
     @Test
     void anAssessmentRoundTripsIncludingItsDecision() {
-        ClaimAssessment assessment = new ClaimAssessment(10L, "CLM-2026-000010", 7L, "Alice Officer", T0);
+        ClaimAssessment assessment = new ClaimAssessment(10L, "CLM-2026-000010", 7L, "Alice Staff", T0);
         assessment.recordDecision(AssessmentDecision.REJECTED, "Policy lapsed", T0.plusSeconds(60));
         assessmentRepository.saveAndFlush(assessment);
 
@@ -37,14 +37,14 @@ class AssessmentRepositoriesTest {
 
         assertThat(found.getId()).isNotNull();
         assertThat(found.getClaimNumber()).isEqualTo("CLM-2026-000010");
-        assertThat(found.getOfficerId()).isEqualTo(7L);
-        assertThat(found.getOfficerName()).isEqualTo("Alice Officer");
+        assertThat(found.getStaffId()).isEqualTo(7L);
+        assertThat(found.getStaffName()).isEqualTo("Alice Staff");
         assertThat(found.getDecision()).isEqualTo(AssessmentDecision.REJECTED);
         assertThat(found.getDecisionReason()).isEqualTo("Policy lapsed");
         assertThat(found.getAssignedAt()).isEqualTo(T0);
         assertThat(found.getDecidedAt()).isEqualTo(T0.plusSeconds(60));
         assertThat(found.getVersion()).isZero();
-        // audit columns: created when the officer took the claim, last touched when they decided
+        // audit columns: created when the staff member took the claim, last touched when they decided
         assertThat(found.getCreatedAt()).isEqualTo(T0);
         assertThat(found.getUpdatedAt()).isEqualTo(T0.plusSeconds(60));
     }
@@ -75,19 +75,19 @@ class AssessmentRepositoriesTest {
     }
 
     @Test
-    void officerNamesAreGroupedPerOfficer() {
-        assessmentRepository.save(new ClaimAssessment(10L, "CLM-2026-000010", 7L, "Alice Officer", T0));
-        assessmentRepository.save(new ClaimAssessment(11L, "CLM-2026-000011", 7L, "Alice Officer", T0));
+    void staffNamesAreGroupedPerStaffMember() {
+        assessmentRepository.save(new ClaimAssessment(10L, "CLM-2026-000010", 7L, "Alice Staff", T0));
+        assessmentRepository.save(new ClaimAssessment(11L, "CLM-2026-000011", 7L, "Alice Staff", T0));
         assessmentRepository.save(new ClaimAssessment(12L, "CLM-2026-000012", 8L, null, T0));
         assessmentRepository.flush();
 
-        List<ClaimAssessmentRepository.OfficerName> names = assessmentRepository.findOfficerNames();
+        List<ClaimAssessmentRepository.StaffName> names = assessmentRepository.findStaffNames();
 
         assertThat(names).hasSize(2);
-        assertThat(names).filteredOn(name -> name.getOfficerId().equals(7L)).singleElement()
-                .satisfies(name -> assertThat(name.getOfficerName()).isEqualTo("Alice Officer"));
-        assertThat(names).filteredOn(name -> name.getOfficerId().equals(8L)).singleElement()
-                .satisfies(name -> assertThat(name.getOfficerName()).isNull());
+        assertThat(names).filteredOn(name -> name.getStaffId().equals(7L)).singleElement()
+                .satisfies(name -> assertThat(name.getStaffName()).isEqualTo("Alice Staff"));
+        assertThat(names).filteredOn(name -> name.getStaffId().equals(8L)).singleElement()
+                .satisfies(name -> assertThat(name.getStaffName()).isNull());
     }
 
     @Test
@@ -103,7 +103,7 @@ class AssessmentRepositoriesTest {
         assertThat(notes).extracting(ClaimNote::getContent).containsExactly("first", "second", "third");
         assertThat(notes).extracting(ClaimNote::getNoteType)
                 .containsExactly(NoteType.INFO_REQUEST, NoteType.GENERAL, NoteType.APPROVAL);
-        assertThat(notes.get(0).getOfficerName()).isEqualTo("Alice");
+        assertThat(notes.get(0).getStaffName()).isEqualTo("Alice");
         assertThat(notes.get(0).getCreatedAt()).isEqualTo(T0);
     }
 

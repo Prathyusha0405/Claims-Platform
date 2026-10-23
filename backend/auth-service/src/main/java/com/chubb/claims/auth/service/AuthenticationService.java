@@ -28,7 +28,7 @@ public class AuthenticationService {
         this.jwtService = jwtService;
     }
 
-    /** Public self-registration always creates a CLAIMANT; officers and admins are never self-assigned. */
+    /** Public self-registration always creates a CLAIMANT; claims staff and managers are never self-assigned. */
     public UserResponse register(RegisterRequest request) {
         User user = userService.createUser(request.fullName(), request.email(), request.password(), Role.CLAIMANT);
         return UserResponse.from(user);

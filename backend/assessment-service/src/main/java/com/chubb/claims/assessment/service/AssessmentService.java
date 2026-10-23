@@ -26,14 +26,14 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * The officer's side of claim handling. Claim-service owns the claim and its lifecycle, so every state change is
+ * The staff member's side of claim handling. Claim-service owns the claim and its lifecycle, so every state change is
  * made there first: it enforces the status rules (only SUBMITTED can be assigned, only UNDER_REVIEW can be decided)
- * and that only the assigned officer decides, and it records the audit trail and notifies the claimant. This service
- * then records what is the officer's own: the assessment (who took the claim, and the decision) and the review notes.
+ * and that only the assigned staff member decides, and it records the audit trail and notifies the claimant. This service
+ * then records what is the staff member's own: the assessment (who took the claim, and the decision) and the review notes.
  * <p>
  * Order matters: the claim-service call comes first and the local write last. If claim-service refuses, nothing is
  * stored here. If the local write fails after claim-service accepted, the claim has still moved correctly, and the
- * missing assessment record is recreated by the officer's next action on that claim.
+ * missing assessment record is recreated by the staff member's next action on that claim.
  */
 @Service
 public class AssessmentService {
@@ -53,80 +53,80 @@ public class AssessmentService {
         this.clock = clock;
     }
 
-    /** The work queue: SUBMITTED claims nobody has taken yet. */
-    public PageResponse<ClaimSummaryResponse> getUnassignedClaims(Pageable pageable) {
-        return PageResponse.from(claimServiceClient.findUnassigned(pageable), ClaimSummaryResponse::from);
+    /** The work queue: SUBMITTED claims nobody has taken yet, optionally for one market. */
+    public PageResponse<ClaimSummaryResponse> getUnassignedClaims(String market, Pageable pageable) {
+        return PageResponse.from(claimServiceClient.findUnassigned(market, pageable), ClaimSummaryResponse::from);
     }
 
-    /** The officer takes an unassigned claim; it moves to UNDER_REVIEW. */
+    /** The staff member takes an unassigned claim; it moves to UNDER_REVIEW. */
     @Transactional
-    public AssessmentResponse assign(Long claimId, AuthenticatedUser officer) {
+    public AssessmentResponse assign(Long claimId, AuthenticatedUser staffMember) {
         RemoteClaim claim = claimServiceClient.assign(claimId);
         Instant now = clock.instant();
 
         ClaimAssessment assessment = assessmentRepository.findByClaimId(claim.id())
                 .map(existing -> {
-                    existing.assignTo(officer.userId(), officer.fullName(), now);
+                    existing.assignTo(staffMember.userId(), staffMember.fullName(), now);
                     return existing;
                 })
-                .orElseGet(() -> new ClaimAssessment(claim.id(), claim.claimNumber(), officer.userId(), officer.fullName(), now));
+                .orElseGet(() -> new ClaimAssessment(claim.id(), claim.claimNumber(), staffMember.userId(), staffMember.fullName(), now));
 
         return AssessmentResponse.from(assessmentRepository.save(assessment), claim.status());
     }
 
     /** UNDER_REVIEW -> APPROVED. The comment is optional. */
     @Transactional
-    public AssessmentResponse approve(Long claimId, ApproveClaimRequest request, AuthenticatedUser officer) {
+    public AssessmentResponse approve(Long claimId, ApproveClaimRequest request, AuthenticatedUser staffMember) {
         String comment = request == null ? null : trimToNull(request.comment());
         RemoteClaim claim = claimServiceClient.approve(claimId, comment);
 
         Instant now = clock.instant();
-        ClaimAssessment assessment = assessmentFor(claim, officer, now);
+        ClaimAssessment assessment = assessmentFor(claim, staffMember, now);
         assessment.recordDecision(AssessmentDecision.APPROVED, comment, now);
         if (comment != null) {
-            noteRepository.save(new ClaimNote(claim.id(), officer.userId(), officer.fullName(), NoteType.APPROVAL, comment, now));
+            noteRepository.save(new ClaimNote(claim.id(), staffMember.userId(), staffMember.fullName(), NoteType.APPROVAL, comment, now));
         }
         return AssessmentResponse.from(assessmentRepository.save(assessment), claim.status());
     }
 
     /** UNDER_REVIEW -> REJECTED. A reason is required. */
     @Transactional
-    public AssessmentResponse reject(Long claimId, RejectClaimRequest request, AuthenticatedUser officer) {
+    public AssessmentResponse reject(Long claimId, RejectClaimRequest request, AuthenticatedUser staffMember) {
         String reason = request.reason().trim();
         RemoteClaim claim = claimServiceClient.reject(claimId, reason);
 
         Instant now = clock.instant();
-        ClaimAssessment assessment = assessmentFor(claim, officer, now);
+        ClaimAssessment assessment = assessmentFor(claim, staffMember, now);
         assessment.recordDecision(AssessmentDecision.REJECTED, reason, now);
-        noteRepository.save(new ClaimNote(claim.id(), officer.userId(), officer.fullName(), NoteType.REJECTION, reason, now));
+        noteRepository.save(new ClaimNote(claim.id(), staffMember.userId(), staffMember.fullName(), NoteType.REJECTION, reason, now));
         return AssessmentResponse.from(assessmentRepository.save(assessment), claim.status());
     }
 
     /** UNDER_REVIEW -> MORE_INFO_REQUIRED. Tells the claimant what to provide; no decision is recorded yet. */
     @Transactional
-    public AssessmentResponse requestInfo(Long claimId, RequestInfoRequest request, AuthenticatedUser officer) {
+    public AssessmentResponse requestInfo(Long claimId, RequestInfoRequest request, AuthenticatedUser staffMember) {
         String message = request.message().trim();
         RemoteClaim claim = claimServiceClient.requestInfo(claimId, message);
 
         Instant now = clock.instant();
-        ClaimAssessment assessment = assessmentFor(claim, officer, now);
-        noteRepository.save(new ClaimNote(claim.id(), officer.userId(), officer.fullName(), NoteType.INFO_REQUEST, message, now));
+        ClaimAssessment assessment = assessmentFor(claim, staffMember, now);
+        noteRepository.save(new ClaimNote(claim.id(), staffMember.userId(), staffMember.fullName(), NoteType.INFO_REQUEST, message, now));
         return AssessmentResponse.from(assessmentRepository.save(assessment), claim.status());
     }
 
     /** Adds an internal note to any existing claim. */
     @Transactional
-    public NoteResponse addNote(Long claimId, AddNoteRequest request, AuthenticatedUser officer) {
+    public NoteResponse addNote(Long claimId, AddNoteRequest request, AuthenticatedUser staffMember) {
         RemoteClaim claim = claimServiceClient.getClaim(claimId);
 
-        ClaimNote note = noteRepository.save(new ClaimNote(claim.id(), officer.userId(), officer.fullName(),
+        ClaimNote note = noteRepository.save(new ClaimNote(claim.id(), staffMember.userId(), staffMember.fullName(),
                 NoteType.GENERAL, request.content().trim(), clock.instant()));
         return NoteResponse.from(note);
     }
 
     /**
      * The review trail for a claim, oldest first: general notes plus the notes recorded by approvals, rejections and
-     * information requests. Any officer may read any claim's notes, as any officer may add one. The claim is looked up
+     * information requests. Any staff member may read any claim's notes, as any staff member may add one. The claim is looked up
      * first so an unknown claim is a 404 (and a claim-service outage a 503) rather than an empty list; that call is
      * deliberately outside any transaction.
      */
@@ -135,9 +135,9 @@ public class AssessmentService {
         return noteRepository.findByClaimIdOrderByCreatedAtAscIdAsc(claimId).stream().map(NoteResponse::from).toList();
     }
 
-    private ClaimAssessment assessmentFor(RemoteClaim claim, AuthenticatedUser officer, Instant now) {
+    private ClaimAssessment assessmentFor(RemoteClaim claim, AuthenticatedUser staffMember, Instant now) {
         return assessmentRepository.findByClaimId(claim.id())
-                .orElseGet(() -> new ClaimAssessment(claim.id(), claim.claimNumber(), officer.userId(), officer.fullName(), now));
+                .orElseGet(() -> new ClaimAssessment(claim.id(), claim.claimNumber(), staffMember.userId(), staffMember.fullName(), now));
     }
 
     private static String trimToNull(String value) {

@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ClaimSecurityIntegrationTest {
 
     private static final String CLAIM_BODY = """
-            {"policyNumber":"POL-SEC-1","claimType":"AUTO","incidentDate":"2026-10-15",
+            {"policyNumber":"POL-SEC-1","claimType":"AUTO","market":"SG","incidentDate":"2026-10-15",
              "description":"security test","claimAmount":10.00}""";
 
     @Autowired
@@ -59,12 +59,12 @@ class ClaimSecurityIntegrationTest {
         String valid = TestJwt.token(jwtSecret, 1L, Role.CLAIMANT);
         String[] parts = valid.split("\\.");
         String adminPayload = Base64.getUrlEncoder().withoutPadding().encodeToString(
-                "{\"sub\":\"1\",\"role\":\"ADMIN\"}".getBytes());
+                "{\"sub\":\"1\",\"role\":\"MANAGER\"}".getBytes());
 
         String[] badTokens = {
                 parts[0] + "." + adminPayload + "." + parts[2],
                 TestJwt.token(jwtSecret, 1L, "a@b.com", "A", Role.CLAIMANT, -1_000L),
-                TestJwt.token("another-secret-key-that-is-long-enough-1234", 1L, Role.ADMIN),
+                TestJwt.token("another-secret-key-that-is-long-enough-1234", 1L, Role.MANAGER),
                 "not-a-jwt"};
 
         for (String bad : badTokens) {
@@ -77,7 +77,7 @@ class ClaimSecurityIntegrationTest {
 
     @Test
     void staffCannotCreateClaimsListMyClaimsOrAnswerInformationRequests() throws Exception {
-        for (Role staff : new Role[]{Role.OFFICER, Role.ADMIN}) {
+        for (Role staff : new Role[]{Role.CLAIMS_STAFF, Role.MANAGER}) {
             String bearer = "Bearer " + TestJwt.token(jwtSecret, 2L, staff);
 
             mockMvc.perform(post("/api/claims").header(HttpHeaders.AUTHORIZATION, bearer)
@@ -121,10 +121,10 @@ class ClaimSecurityIntegrationTest {
     }
 
     @Test
-    void internalOfficerEndpointsFollowTheRoleRules() throws Exception {
+    void internalStaffMemberEndpointsFollowTheRoleRules() throws Exception {
         String claimant = "Bearer " + TestJwt.token(jwtSecret, 4L, Role.CLAIMANT);
-        String officer = "Bearer " + TestJwt.token(jwtSecret, 5L, Role.OFFICER);
-        String admin = "Bearer " + TestJwt.token(jwtSecret, 6L, Role.ADMIN);
+        String staffMember = "Bearer " + TestJwt.token(jwtSecret, 5L, Role.CLAIMS_STAFF);
+        String admin = "Bearer " + TestJwt.token(jwtSecret, 6L, Role.MANAGER);
 
         // anonymous
         mockMvc.perform(get("/api/internal/claims/statistics")).andExpect(status().isUnauthorized());
@@ -136,16 +136,16 @@ class ClaimSecurityIntegrationTest {
         mockMvc.perform(post("/api/internal/claims/1/assign").header(HttpHeaders.AUTHORIZATION, claimant))
                 .andExpect(status().isForbidden());
 
-        // admins: read-only
+        // managers: read-only
         mockMvc.perform(get("/api/internal/claims/statistics").header(HttpHeaders.AUTHORIZATION, admin))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/internal/claims/1/assign").header(HttpHeaders.AUTHORIZATION, admin))
                 .andExpect(status().isForbidden());
 
-        // officers: read and act (claim 1 may not exist -> 404 proves it was authorized)
-        mockMvc.perform(get("/api/internal/claims/statistics").header(HttpHeaders.AUTHORIZATION, officer))
+        // claims staff: read and act (claim 1 may not exist -> 404 proves it was authorized)
+        mockMvc.perform(get("/api/internal/claims/statistics").header(HttpHeaders.AUTHORIZATION, staffMember))
                 .andExpect(status().isOk());
-        mockMvc.perform(post("/api/internal/claims/987654321/assign").header(HttpHeaders.AUTHORIZATION, officer))
+        mockMvc.perform(post("/api/internal/claims/987654321/assign").header(HttpHeaders.AUTHORIZATION, staffMember))
                 .andExpect(status().isNotFound());
     }
 
@@ -176,7 +176,7 @@ class ClaimSecurityIntegrationTest {
                 .andExpect(jsonPath("$.paths['/api/notifications/{id}/read'].post.responses['404']").exists())
                 .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
                 .andExpect(jsonPath("$.paths['/api/claims/search'].get.parameters[*].name").value(hasItems(
-                        "claimNumber", "policyNumber", "status", "fromDate", "toDate", "assignedOfficerId",
+                        "claimNumber", "policyNumber", "status", "fromDate", "toDate", "assignedStaffId",
                         "page", "size", "sort")))
                 .andExpect(jsonPath("$.paths['/api/claims'].post.responses['201']").exists())
                 .andExpect(jsonPath("$.paths['/api/claims/{id}/additional-info'].post.responses['409']").exists());

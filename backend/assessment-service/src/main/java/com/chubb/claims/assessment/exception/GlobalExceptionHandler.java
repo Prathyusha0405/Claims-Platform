@@ -28,7 +28,7 @@ import java.util.Map;
  * One JSON error shape for every failure. Extending {@link ResponseEntityExceptionHandler} gives correct status
  * codes for Spring MVC's own exceptions (400 bad parameter, 404 unknown path, 405, 415, ...); they are rendered
  * through {@link #handleExceptionInternal}. Claim-service failures keep claim-service's own status and message where
- * that is meaningful to the officer (404, 409, 403, 400); trouble reaching it is a 503 or 502.
+ * that is meaningful to the staff member (404, 409, 403, 400); trouble reaching it is a 503 or 502.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {

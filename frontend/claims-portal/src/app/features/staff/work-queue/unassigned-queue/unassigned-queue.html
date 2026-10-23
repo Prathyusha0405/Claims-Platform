@@ -1,0 +1,28 @@
+<div class="queue">
+  <mat-form-field class="queue__market" subscriptSizing="dynamic">
+    <mat-label>Market</mat-label>
+    <mat-select [value]="market()" (selectionChange)="filterByMarket($event.value)">
+      <mat-option value="">All markets</mat-option>
+      @for (code of markets; track code) {
+        <mat-option [value]="code">{{ marketLabels[code] }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  @if (queue.error(); as error) {
+    <app-load-error [error]="error" subject="the work queue" (retry)="reload()" />
+  } @else {
+    <app-claims-table
+      label="Unassigned claims"
+      linkBase="/staff/claims"
+      actionLabel="Take claim"
+      [emptyMessage]="emptyMessage()"
+      [page]="queue.value()"
+      [request]="request()"
+      [loading]="queue.loading()"
+      [busyId]="busyId()"
+      (requestChange)="request.set($event)"
+      (action)="take($event)"
+    />
+  }
+</div>

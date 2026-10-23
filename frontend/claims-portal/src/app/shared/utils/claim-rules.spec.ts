@@ -6,7 +6,7 @@ const entry = (eventType: ClaimHistoryEntry['eventType'], details: string | null
   fromStatus: null,
   toStatus: null,
   performedBy: 2,
-  performedByRole: 'OFFICER',
+  performedByRole: 'CLAIMS_STAFF',
   details,
   createdAt: '2026-10-01T00:00:00Z',
 });
@@ -23,8 +23,8 @@ describe('reviewAccess', () => {
     ['APPROVED', ME, 'closed'],
     ['REJECTED', ME, 'closed'],
     ['SETTLED', ME, 'closed'],
-  ])('%s held by %s → %s', (status, assignedOfficerId, expected) => {
-    expect(reviewAccess({ status, assignedOfficerId }, ME)).toBe(expected);
+  ])('%s held by %s → %s', (status, assignedStaffId, expected) => {
+    expect(reviewAccess({ status, assignedStaffId }, ME)).toBe(expected);
   });
 });
 

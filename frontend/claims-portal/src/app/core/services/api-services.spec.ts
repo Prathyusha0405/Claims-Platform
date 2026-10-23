@@ -8,7 +8,7 @@ import { ClaimApi } from './claim-api';
 import { DashboardApi } from './dashboard-api';
 import { NotificationApi } from './notification-api';
 import { NotificationStore } from './notification-store';
-import { OfficerApi } from './officer-api';
+import { StaffApi } from './staff-api';
 
 const PAGE: PageRequest = { page: 1, size: 20, sortField: 'createdAt', sortDirection: 'desc' };
 
@@ -36,6 +36,7 @@ describe('backend API services', () => {
       const body = {
         policyNumber: 'POL-2026-12345',
         claimType: 'AUTO' as const,
+        market: 'SG' as const,
         incidentDate: '2026-10-15',
         description: 'Rear-ended',
         claimAmount: 2500,
@@ -56,7 +57,7 @@ describe('backend API services', () => {
 
     it('searches with only the filters that have a value', () => {
       TestBed.inject(ClaimApi)
-        .search({ claimNumber: 'CLM-2026', status: 'APPROVED', policyNumber: '  ', assignedOfficerId: undefined, fromDate: '2026-10-01' }, PAGE)
+        .search({ claimNumber: 'CLM-2026', status: 'APPROVED', policyNumber: '  ', assignedStaffId: undefined, fromDate: '2026-10-01' }, PAGE)
         .subscribe();
 
       const { params } = answer('/api/claims/search', 'GET').request;
@@ -64,8 +65,14 @@ describe('backend API services', () => {
       expect(params.get('status')).toBe('APPROVED');
       expect(params.get('fromDate')).toBe('2026-10-01');
       expect(params.has('policyNumber')).toBe(false);
-      expect(params.has('assignedOfficerId')).toBe(false);
+      expect(params.has('assignedStaffId')).toBe(false);
       expect(params.has('toDate')).toBe(false);
+    });
+
+    it('searches within one market', () => {
+      TestBed.inject(ClaimApi).search({ market: 'NZ' }, PAGE).subscribe();
+
+      expect(answer('/api/claims/search', 'GET').request.params.get('market')).toBe('NZ');
     });
 
     it('looks a claim up by number, encoding it for the URL', () => {
@@ -83,64 +90,91 @@ describe('backend API services', () => {
     });
   });
 
-  describe('OfficerApi', () => {
+  describe('StaffApi', () => {
     it('reads the work queue', () => {
-      TestBed.inject(OfficerApi).unassigned({ ...PAGE, sortDirection: 'asc' }).subscribe();
+      TestBed.inject(StaffApi).unassigned({ ...PAGE, sortDirection: 'asc' }).subscribe();
 
-      const { params } = answer('/api/officer/claims/unassigned', 'GET').request;
+      const { params } = answer('/api/staff/claims/unassigned', 'GET').request;
       expect(params.get('sort')).toBe('createdAt,asc');
+      expect(params.has('market')).toBe(false);
     });
 
-    it('takes a claim with an empty POST (the caller is the officer)', () => {
-      TestBed.inject(OfficerApi).assign(7).subscribe();
+    it('narrows the work queue to one market', () => {
+      TestBed.inject(StaffApi).unassigned({ ...PAGE, sortDirection: 'asc' }, 'HK').subscribe();
 
-      expect(answer('/api/officer/claims/7/assign', 'POST').request.body).toEqual({});
+      expect(answer('/api/staff/claims/unassigned', 'GET').request.params.get('market')).toBe('HK');
+    });
+
+    it('takes a claim with an empty POST (the caller is the staff member)', () => {
+      TestBed.inject(StaffApi).assign(7).subscribe();
+
+      expect(answer('/api/staff/claims/7/assign', 'POST').request.body).toEqual({});
     });
 
     it('approves with a trimmed comment, or with none at all', () => {
-      const api = TestBed.inject(OfficerApi);
+      const api = TestBed.inject(StaffApi);
 
       api.approve(7, '  Damage confirmed  ').subscribe();
-      expect(answer('/api/officer/claims/7/approve', 'POST').request.body).toEqual({ comment: 'Damage confirmed' });
+      expect(answer('/api/staff/claims/7/approve', 'POST').request.body).toEqual({ comment: 'Damage confirmed' });
 
       api.approve(7, '   ').subscribe();
-      expect(answer('/api/officer/claims/7/approve', 'POST').request.body).toEqual({});
+      expect(answer('/api/staff/claims/7/approve', 'POST').request.body).toEqual({});
 
       api.approve(7).subscribe();
-      expect(answer('/api/officer/claims/7/approve', 'POST').request.body).toEqual({});
+      expect(answer('/api/staff/claims/7/approve', 'POST').request.body).toEqual({});
     });
 
     it('rejects with a reason and asks for information with a message', () => {
-      const api = TestBed.inject(OfficerApi);
+      const api = TestBed.inject(StaffApi);
 
       api.reject(7, 'Policy lapsed').subscribe();
-      expect(answer('/api/officer/claims/7/reject', 'POST').request.body).toEqual({ reason: 'Policy lapsed' });
+      expect(answer('/api/staff/claims/7/reject', 'POST').request.body).toEqual({ reason: 'Policy lapsed' });
 
       api.requestInfo(7, 'Send photos').subscribe();
-      expect(answer('/api/officer/claims/7/request-info', 'POST').request.body).toEqual({ message: 'Send photos' });
+      expect(answer('/api/staff/claims/7/request-info', 'POST').request.body).toEqual({ message: 'Send photos' });
     });
 
     it('reads and adds notes on the same URL', () => {
-      const api = TestBed.inject(OfficerApi);
+      const api = TestBed.inject(StaffApi);
 
       api.notes(7).subscribe();
-      answer('/api/officer/claims/7/notes', 'GET', []);
+      answer('/api/staff/claims/7/notes', 'GET', []);
 
       api.addNote(7, 'Called the workshop').subscribe();
-      expect(answer('/api/officer/claims/7/notes', 'POST').request.body).toEqual({ content: 'Called the workshop' });
+      expect(answer('/api/staff/claims/7/notes', 'POST').request.body).toEqual({ content: 'Called the workshop' });
     });
   });
 
   describe('DashboardApi', () => {
-    it('reads the three admin reports', () => {
+    it('reads the three manager reports', () => {
       const api = TestBed.inject(DashboardApi);
 
       api.statusSummary().subscribe();
       answer('/api/dashboard/status-summary', 'GET');
-      api.officerWorkload().subscribe();
-      answer('/api/dashboard/officer-workload', 'GET');
+      api.staffWorkload().subscribe();
+      answer('/api/dashboard/staff-workload', 'GET');
       api.liabilityExposure().subscribe();
       answer('/api/dashboard/liability-exposure', 'GET');
+    });
+  });
+
+  describe('DashboardApi, limited to a market', () => {
+    it('sends the market only when one is given', () => {
+      const api = TestBed.inject(DashboardApi);
+
+      api.statusSummary().subscribe();
+      expect(answer('/api/dashboard/status-summary', 'GET').request.params.has('market')).toBe(false);
+      api.staffWorkload().subscribe();
+      expect(answer('/api/dashboard/staff-workload', 'GET').request.params.has('market')).toBe(false);
+      api.liabilityExposure().subscribe();
+      expect(answer('/api/dashboard/liability-exposure', 'GET').request.params.has('market')).toBe(false);
+
+      api.statusSummary('JP').subscribe();
+      expect(answer('/api/dashboard/status-summary', 'GET').request.params.get('market')).toBe('JP');
+      api.staffWorkload('HK').subscribe();
+      expect(answer('/api/dashboard/staff-workload', 'GET').request.params.get('market')).toBe('HK');
+      api.liabilityExposure('NZ').subscribe();
+      expect(answer('/api/dashboard/liability-exposure', 'GET').request.params.get('market')).toBe('NZ');
     });
   });
 

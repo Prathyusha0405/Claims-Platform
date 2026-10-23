@@ -18,7 +18,7 @@ import com.chubb.claims.claim.event.ClaimEventPublisher;
 import com.chubb.claims.claim.exception.ClaimNotFoundException;
 import com.chubb.claims.claim.exception.InvalidRequestException;
 import com.chubb.claims.claim.exception.InvalidStatusTransitionException;
-import com.chubb.claims.claim.exception.NotAssignedOfficerException;
+import com.chubb.claims.claim.exception.NotAssignedStaffException;
 import com.chubb.claims.claim.repository.ClaimHistoryRepository;
 import com.chubb.claims.claim.repository.ClaimRepository;
 import com.chubb.claims.claim.repository.ClaimSpecifications;
@@ -40,7 +40,7 @@ public class ClaimService {
 
     /** Entity attributes clients may sort by; anything else is rejected rather than passed to the database layer. */
     static final Set<String> SORTABLE_FIELDS = Set.of(
-            "createdAt", "updatedAt", "claimNumber", "policyNumber", "status", "claimAmount", "incidentDate");
+            "createdAt", "updatedAt", "claimNumber", "policyNumber", "market", "status", "claimAmount", "incidentDate");
 
     private final ClaimRepository claimRepository;
     private final ClaimHistoryRepository claimHistoryRepository;
@@ -75,6 +75,7 @@ public class ClaimService {
                 user.fullName(),
                 user.email(),
                 request.claimType(),
+                request.market(),
                 request.incidentDate(),
                 trimToNull(request.incidentLocation()),
                 request.description().trim(),
@@ -101,7 +102,7 @@ public class ClaimService {
         return PageResponse.from(claims.map(ClaimSummaryResponse::from));
     }
 
-    /** Claimants only ever see their own claims; officers and admins search across all claims. */
+    /** Claimants only ever see their own claims; claims staff and managers search across all claims. */
     @Transactional(readOnly = true)
     public PageResponse<ClaimSummaryResponse> search(ClaimSearchCriteria criteria, AuthenticatedUser user, Pageable pageable) {
         if (criteria.fromDate() != null && criteria.toDate() != null && criteria.fromDate().isAfter(criteria.toDate())) {
@@ -114,7 +115,7 @@ public class ClaimService {
         return PageResponse.from(claims.map(ClaimSummaryResponse::from));
     }
 
-    /** The claimant's answer to an officer's request: MORE_INFO_REQUIRED -> UNDER_REVIEW. */
+    /** The claimant's answer to a staff member's request: MORE_INFO_REQUIRED -> UNDER_REVIEW. */
     @Transactional
     public ClaimDetailResponse submitAdditionalInfo(Long claimId, AdditionalInfoRequest request, AuthenticatedUser user) {
         Claim claim = claimRepository.findById(claimId)
@@ -138,61 +139,61 @@ public class ClaimService {
         return detail(claim);
     }
 
-    // ---- officer workflow (called by assessment-service on behalf of an officer) ------------------------------
+    // ---- staff member workflow (called by assessment-service on behalf of a staff member) ------------------------------
 
     @Transactional(readOnly = true)
     public ClaimSummaryResponse getClaimById(Long claimId) {
         return ClaimSummaryResponse.from(findById(claimId));
     }
 
-    /** Raw totals per status and per officer; assessment-service derives dashboard metrics from them. */
+    /** Raw totals per market, currency and status and per staff member; assessment-service derives dashboard metrics from them. */
     @Transactional(readOnly = true)
     public ClaimStatisticsResponse statistics() {
-        return new ClaimStatisticsResponse(claimRepository.totalsByStatus(), claimRepository.totalsByOfficerAndStatus());
+        return new ClaimStatisticsResponse(claimRepository.totalsByStatus(), claimRepository.totalsByStaffAndStatus());
     }
 
-    /** SUBMITTED -> UNDER_REVIEW, owned by the calling officer. */
+    /** SUBMITTED -> UNDER_REVIEW, owned by the calling staff member. */
     @Transactional
-    public ClaimSummaryResponse assignToOfficer(Long claimId, AuthenticatedUser officer) {
+    public ClaimSummaryResponse assignToStaff(Long claimId, AuthenticatedUser staffMember) {
         Claim claim = findById(claimId);
         ClaimStatus before = claim.getStatus();
         Instant now = clock.instant();
 
-        claim.assignTo(officer.userId(), now);
+        claim.assignTo(staffMember.userId(), now);
         claimRepository.save(claim);
 
-        String officerName = officer.fullName() != null ? officer.fullName() : "officer " + officer.userId();
-        eventPublisher.publish(event(ClaimEventType.CLAIM_ASSIGNED, claim, before, claim.getStatus(), officer,
-                "Assigned to " + officerName, now));
+        String staffName = staffMember.fullName() != null ? staffMember.fullName() : "staff member " + staffMember.userId();
+        eventPublisher.publish(event(ClaimEventType.CLAIM_ASSIGNED, claim, before, claim.getStatus(), staffMember,
+                "Assigned to " + staffName, now));
         return ClaimSummaryResponse.from(claim);
     }
 
-    /** UNDER_REVIEW -> APPROVED, by the assigned officer. */
+    /** UNDER_REVIEW -> APPROVED, by the assigned staff member. */
     @Transactional
-    public ClaimSummaryResponse approve(Long claimId, ApproveClaimRequest request, AuthenticatedUser officer) {
+    public ClaimSummaryResponse approve(Long claimId, ApproveClaimRequest request, AuthenticatedUser staffMember) {
         String comment = request == null ? null : trimToNull(request.comment());
-        return decide(claimId, officer, ClaimStatus.APPROVED, ClaimEventType.CLAIM_APPROVED,
+        return decide(claimId, staffMember, ClaimStatus.APPROVED, ClaimEventType.CLAIM_APPROVED,
                 comment != null ? comment : "Claim approved");
     }
 
-    /** UNDER_REVIEW -> REJECTED, by the assigned officer. */
+    /** UNDER_REVIEW -> REJECTED, by the assigned staff member. */
     @Transactional
-    public ClaimSummaryResponse reject(Long claimId, RejectClaimRequest request, AuthenticatedUser officer) {
-        return decide(claimId, officer, ClaimStatus.REJECTED, ClaimEventType.CLAIM_REJECTED, request.reason().trim());
+    public ClaimSummaryResponse reject(Long claimId, RejectClaimRequest request, AuthenticatedUser staffMember) {
+        return decide(claimId, staffMember, ClaimStatus.REJECTED, ClaimEventType.CLAIM_REJECTED, request.reason().trim());
     }
 
-    /** UNDER_REVIEW -> MORE_INFO_REQUIRED, by the assigned officer. */
+    /** UNDER_REVIEW -> MORE_INFO_REQUIRED, by the assigned staff member. */
     @Transactional
-    public ClaimSummaryResponse requestAdditionalInfo(Long claimId, RequestInfoRequest request, AuthenticatedUser officer) {
-        return decide(claimId, officer, ClaimStatus.MORE_INFO_REQUIRED, ClaimEventType.ADDITIONAL_INFO_REQUESTED,
+    public ClaimSummaryResponse requestAdditionalInfo(Long claimId, RequestInfoRequest request, AuthenticatedUser staffMember) {
+        return decide(claimId, staffMember, ClaimStatus.MORE_INFO_REQUIRED, ClaimEventType.ADDITIONAL_INFO_REQUESTED,
                 request.message().trim());
     }
 
-    private ClaimSummaryResponse decide(Long claimId, AuthenticatedUser officer, ClaimStatus target,
+    private ClaimSummaryResponse decide(Long claimId, AuthenticatedUser staffMember, ClaimStatus target,
                                         ClaimEventType eventType, String details) {
         Claim claim = findById(claimId);
-        if (!officer.userId().equals(claim.getAssignedOfficerId())) {
-            throw new NotAssignedOfficerException();
+        if (!staffMember.userId().equals(claim.getAssignedStaffId())) {
+            throw new NotAssignedStaffException();
         }
 
         ClaimStatus before = claim.getStatus();
@@ -200,7 +201,7 @@ public class ClaimService {
         claim.transitionTo(target, now);
         claimRepository.save(claim);
 
-        eventPublisher.publish(event(eventType, claim, before, claim.getStatus(), officer, details, now));
+        eventPublisher.publish(event(eventType, claim, before, claim.getStatus(), staffMember, details, now));
         return ClaimSummaryResponse.from(claim);
     }
 
@@ -219,7 +220,7 @@ public class ClaimService {
     private static ClaimEvent event(ClaimEventType type, Claim claim, ClaimStatus from, ClaimStatus to,
                                     AuthenticatedUser actor, String details, Instant now) {
         return new ClaimEvent(type, claim.getId(), claim.getClaimNumber(), claim.getClaimantId(),
-                claim.getAssignedOfficerId(), from, to, actor.userId(), actor.role().name(), details, now);
+                claim.getAssignedStaffId(), from, to, actor.userId(), actor.role().name(), details, now);
     }
 
     private static Pageable sanitize(Pageable pageable) {

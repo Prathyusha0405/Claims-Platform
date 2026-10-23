@@ -73,7 +73,7 @@ Permissions
 
 ---
 
-## OFFICER
+## CLAIMS_STAFF
 
 Permissions
 
@@ -87,13 +87,13 @@ Permissions
 
 ---
 
-## ADMIN
+## MANAGER
 
 Permissions
 
 - Dashboard Access
 - Liability Exposure Dashboard
-- Officer Workload Dashboard
+- Claims Staff Workload Dashboard
 
 ---
 
@@ -109,7 +109,7 @@ Responsibilities
 
 Port
 
-8081
+8084
 
 Database Tables
 
@@ -166,7 +166,7 @@ Responsibilities
 - Assign Claims
 - Approve Claims
 - Reject Claims
-- Officer Notes
+- Staff Notes
 - Dashboard Metrics
 - Liability Exposure
 
@@ -181,21 +181,21 @@ claim_notes
 
 Endpoints
 
-GET /api/officer/claims/unassigned
+GET /api/staff/claims/unassigned
 
-POST /api/officer/claims/{id}/assign
+POST /api/staff/claims/{id}/assign
 
-POST /api/officer/claims/{id}/approve
+POST /api/staff/claims/{id}/approve
 
-POST /api/officer/claims/{id}/reject
+POST /api/staff/claims/{id}/reject
 
-POST /api/officer/claims/{id}/request-info
+POST /api/staff/claims/{id}/request-info
 
-POST /api/officer/claims/{id}/notes
+POST /api/staff/claims/{id}/notes
 
 GET /api/dashboard/status-summary
 
-GET /api/dashboard/officer-workload
+GET /api/dashboard/staff-workload
 
 GET /api/dashboard/liability-exposure
 
@@ -278,8 +278,8 @@ JWT Authentication
 Roles
 
 - CLAIMANT
-- OFFICER
-- ADMIN
+- CLAIMS_STAFF
+- MANAGER
 
 Use Spring Security.
 
@@ -307,7 +307,7 @@ Metrics:
 - Pending Claims
 - Approved Claims
 - Rejected Claims
-- Officer Workload
+- Claims Staff Workload
 - Liability Exposure
 
 Liability Exposure Formula
@@ -326,7 +326,7 @@ Search By
 - Policy Number
 - Status
 - Date Range
-- Assigned Officer
+- Assigned Staff Member
 
 Support
 
@@ -360,9 +360,9 @@ Auth
 
 Claimant
 
-Officer
+Staff
 
-Admin
+Manager
 
 Shared
 

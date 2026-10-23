@@ -28,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * The full migration set (V1 schema + V2 demo data) on a private database. Pins the user seed to what the other two
- * services' seeds assume: ids 1 (admin), 2-6 (officers) and 7-26 (claimants).
+ * services' seeds assume: ids 1 (manager), 2-6 (claims staff) and 7-26 (claimants).
  */
 @SpringBootTest(properties = {
         "spring.flyway.target=latest",
@@ -52,26 +52,26 @@ class SeedDataIntegrationTest {
     private ObjectMapper objectMapper;
 
     @Test
-    void thereIsOneAdminFiveOfficersAndTwentyClaimants() {
+    void thereIsOneManagerFiveClaimsStaffAndTwentyClaimants() {
         Map<String, Long> byRole = new java.util.TreeMap<>();
         jdbc.queryForList("SELECT role, COUNT(*) AS n FROM users GROUP BY role")
                 .forEach(row -> byRole.put((String) row.get("ROLE"), ((Number) row.get("N")).longValue()));
 
-        assertThat(byRole).containsExactly(Map.entry("ADMIN", 1L), Map.entry("CLAIMANT", 20L), Map.entry("OFFICER", 5L));
+        assertThat(byRole).containsExactly(Map.entry("CLAIMANT", 20L), Map.entry("CLAIMS_STAFF", 5L), Map.entry("MANAGER", 1L));
         assertThat(count("SELECT COUNT(*) FROM users")).isEqualTo(26);
     }
 
     @Test
     void idsFollowTheContractTheOtherServicesSeedsRelyOn() {
-        assertThat(ids("ADMIN")).containsExactly(1L);
-        assertThat(ids("OFFICER")).containsExactly(2L, 3L, 4L, 5L, 6L);
+        assertThat(ids("MANAGER")).containsExactly(1L);
+        assertThat(ids("CLAIMS_STAFF")).containsExactly(2L, 3L, 4L, 5L, 6L);
         assertThat(ids("CLAIMANT")).containsExactlyElementsOf(java.util.stream.LongStream.rangeClosed(7, 26).boxed().toList());
     }
 
     @Test
     void theDocumentedDemoAccountsExist() {
-        assertThat(jdbc.queryForObject("SELECT role FROM users WHERE email = 'admin@chubb.com'", String.class)).isEqualTo("ADMIN");
-        assertThat(jdbc.queryForObject("SELECT id FROM users WHERE email = 'officer@chubb.com'", Long.class)).isEqualTo(2L);
+        assertThat(jdbc.queryForObject("SELECT role FROM users WHERE email = 'manager@chubb.com'", String.class)).isEqualTo("MANAGER");
+        assertThat(jdbc.queryForObject("SELECT id FROM users WHERE email = 'staff@chubb.com'", Long.class)).isEqualTo(2L);
         assertThat(jdbc.queryForObject("SELECT full_name FROM users WHERE email = 'weiling.tan@example.com'", String.class)).isEqualTo("Wei Ling Tan");
     }
 
@@ -85,8 +85,8 @@ class SeedDataIntegrationTest {
     void everyPasswordHashMatchesTheDocumentedDemoPassword() {
         jdbc.queryForList("SELECT email, role, password_hash FROM users").forEach(row -> {
             String expected = switch ((String) row.get("ROLE")) {
-                case "ADMIN" -> "Admin@123";
-                case "OFFICER" -> "Officer@123";
+                case "MANAGER" -> "Manager@123";
+                case "CLAIMS_STAFF" -> "Staff@123";
                 default -> "Claimant@123";
             };
             assertThat(passwordEncoder.matches(expected, (String) row.get("PASSWORD_HASH")))
@@ -106,7 +106,7 @@ class SeedDataIntegrationTest {
         List<User> users = userRepository.findAll();
 
         assertThat(users).hasSize(26);
-        assertThat(users).extracting(User::getRole).contains(Role.ADMIN, Role.OFFICER, Role.CLAIMANT);
+        assertThat(users).extracting(User::getRole).contains(Role.MANAGER, Role.CLAIMS_STAFF, Role.CLAIMANT);
         assertThat(users).allSatisfy(user -> {
             assertThat(user.getCreatedAt()).isNotNull();
             assertThat(user.getUpdatedAt()).isNotNull();
@@ -123,9 +123,9 @@ class SeedDataIntegrationTest {
 
     @Test
     void seededAccountsCanLogInAndSeeTheirOwnProfile() throws Exception {
-        assertLogin("admin@chubb.com", "Admin@123", "ADMIN");
-        assertLogin("officer@chubb.com", "Officer@123", "OFFICER");
-        assertLogin("kenji.sato@chubb.com", "Officer@123", "OFFICER");
+        assertLogin("manager@chubb.com", "Manager@123", "MANAGER");
+        assertLogin("staff@chubb.com", "Staff@123", "CLAIMS_STAFF");
+        assertLogin("kenji.sato@chubb.com", "Staff@123", "CLAIMS_STAFF");
         String token = assertLogin("hiroshi.tanaka@example.com", "Claimant@123", "CLAIMANT");
 
         mockMvc.perform(get("/api/users/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
@@ -136,7 +136,7 @@ class SeedDataIntegrationTest {
 
     @Test
     void aWrongPasswordStillFails() throws Exception {
-        login("admin@chubb.com", "Officer@123").andExpect(status().isUnauthorized());
+        login("manager@chubb.com", "Staff@123").andExpect(status().isUnauthorized());
     }
 
     private String assertLogin(String email, String password, String expectedRole) throws Exception {

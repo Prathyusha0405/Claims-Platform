@@ -15,17 +15,17 @@ class JwtServiceTest {
 
     @Test
     void readsTheUserFromATokenInAuthServicesFormat() {
-        String token = TestJwt.token(SECRET, 42L, "officer@chubb.com", "Demo Officer", Role.OFFICER, 3_600_000L);
+        String token = TestJwt.token(SECRET, 42L, "staff@chubb.com", "Demo Claims Staff", Role.CLAIMS_STAFF, 3_600_000L);
 
         assertThat(jwtService.parse(token))
-                .contains(new AuthenticatedUser(42L, "officer@chubb.com", "Demo Officer", Role.OFFICER));
+                .contains(new AuthenticatedUser(42L, "staff@chubb.com", "Demo Claims Staff", Role.CLAIMS_STAFF));
     }
 
     @Test
     void authoritiesAreRolePrefixed() {
-        AuthenticatedUser admin = jwtService.parse(TestJwt.token(SECRET, 1L, Role.ADMIN)).orElseThrow();
+        AuthenticatedUser admin = jwtService.parse(TestJwt.token(SECRET, 1L, Role.MANAGER)).orElseThrow();
 
-        assertThat(admin.authorities()).extracting(Object::toString).containsExactly("ROLE_ADMIN");
+        assertThat(admin.authorities()).extracting(Object::toString).containsExactly("ROLE_MANAGER");
     }
 
     @Test
@@ -35,7 +35,7 @@ class JwtServiceTest {
 
     @Test
     void tokenSignedWithAnotherSecretIsRejected() {
-        String foreign = TestJwt.token("a-completely-different-secret-of-sufficient-length", 1L, Role.ADMIN);
+        String foreign = TestJwt.token("a-completely-different-secret-of-sufficient-length", 1L, Role.MANAGER);
 
         assertThat(jwtService.parse(foreign)).isEmpty();
     }
@@ -44,7 +44,7 @@ class JwtServiceTest {
     void tamperedPayloadIsRejected() {
         String[] parts = TestJwt.token(SECRET, 1L, Role.CLAIMANT).split("\\.");
         String forged = Base64.getUrlEncoder().withoutPadding().encodeToString(
-                "{\"sub\":\"1\",\"role\":\"ADMIN\"}".getBytes());
+                "{\"sub\":\"1\",\"role\":\"MANAGER\"}".getBytes());
 
         assertThat(jwtService.parse(parts[0] + "." + forged + "." + parts[2])).isEmpty();
     }
@@ -52,7 +52,7 @@ class JwtServiceTest {
     @Test
     void unsignedTokenIsRejected() {
         String header = Base64.getUrlEncoder().withoutPadding().encodeToString("{\"alg\":\"none\"}".getBytes());
-        String payload = Base64.getUrlEncoder().withoutPadding().encodeToString("{\"sub\":\"1\",\"role\":\"ADMIN\"}".getBytes());
+        String payload = Base64.getUrlEncoder().withoutPadding().encodeToString("{\"sub\":\"1\",\"role\":\"MANAGER\"}".getBytes());
 
         assertThat(jwtService.parse(header + "." + payload + ".")).isEmpty();
     }

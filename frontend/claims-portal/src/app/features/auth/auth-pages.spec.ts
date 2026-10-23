@@ -61,14 +61,14 @@ describe('auth pages', () => {
 
     it('signs in and goes to the role home page', async () => {
       const fixture = await render();
-      fill(fixture, '  officer@chubb.com ', 'Officer@123');
+      fill(fixture, '  staff@chubb.com ', 'Staff@123');
 
       click(fixture, 'button[type="submit"]');
       const request = http.expectOne('/api/auth/login');
-      expect(request.request.body).toEqual({ email: 'officer@chubb.com', password: 'Officer@123' });
-      request.flush(authResponseFor(fixtureUser('OFFICER', { id: 2 })));
+      expect(request.request.body).toEqual({ email: 'staff@chubb.com', password: 'Staff@123' });
+      request.flush(authResponseFor(fixtureUser('CLAIMS_STAFF', { id: 2 })));
 
-      expect(navigate).toHaveBeenCalledWith('/officer/work-queue');
+      expect(navigate).toHaveBeenCalledWith('/staff/work-queue');
     });
 
     it('goes back to the page the visitor asked for when their role may open it', async () => {
@@ -82,7 +82,7 @@ describe('auth pages', () => {
     });
 
     it("ignores a returnUrl into another role's area", async () => {
-      const fixture = await render('/admin/dashboard');
+      const fixture = await render('/manager/dashboard');
       fill(fixture, 'weiling.tan@example.com', 'Claimant@123');
 
       click(fixture, 'button[type="submit"]');
@@ -110,12 +110,12 @@ describe('auth pages', () => {
       const fixture = await render();
 
       const demo = texts(fixture, '.demo__buttons button');
-      expect(demo).toEqual(environment.showDemoLogins ? ['Claimant', 'Officer', 'Admin'] : []);
+      expect(demo).toEqual(environment.showDemoLogins ? ['Claimant', 'Claims staff', 'Manager'] : []);
 
       if (environment.showDemoLogins) {
         click(fixture, '.demo__buttons button:nth-child(2)');
         await settle(fixture);
-        expect(root(fixture).querySelector<HTMLInputElement>('input[type="email"]')!.value).toBe('officer@chubb.com');
+        expect(root(fixture).querySelector<HTMLInputElement>('input[type="email"]')!.value).toBe('staff@chubb.com');
       }
     });
   });

@@ -10,14 +10,22 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { debounceTime, distinctUntilChanged, map } from 'rxjs';
 
-import { CLAIM_STATUS_LABELS, CLAIM_STATUSES, ClaimSearchCriteria, ClaimStatus } from '@shared/models/claim';
+import {
+  CLAIM_STATUS_LABELS,
+  CLAIM_STATUSES,
+  ClaimSearchCriteria,
+  ClaimStatus,
+  Market,
+  MARKET_LABELS,
+  MARKETS,
+} from '@shared/models/claim';
 import { toIsoDate } from '@shared/utils/dates';
 
 /** How long typing pauses before a search is run, so a claim number is not searched letter by letter. */
 const TYPING_PAUSE_MS = 300;
 
 /**
- * The search bar over a claim list: claim number, policy number, status and a submission date range. It only
+ * The search bar over a claim list: claim number, policy number, status, market and a submission date range. It only
  * reports what the user wants (`criteriaChange`); the page decides which endpoint to ask.
  */
 @Component({
@@ -41,10 +49,13 @@ export class ClaimFilters {
 
   protected readonly statuses = CLAIM_STATUSES;
   protected readonly statusLabels = CLAIM_STATUS_LABELS;
+  protected readonly markets = MARKETS;
+  protected readonly marketLabels = MARKET_LABELS;
   protected readonly form = new FormGroup({
     claimNumber: new FormControl('', { nonNullable: true }),
     policyNumber: new FormControl('', { nonNullable: true }),
     status: new FormControl<ClaimStatus | ''>('', { nonNullable: true }),
+    market: new FormControl<Market | ''>('', { nonNullable: true }),
     fromDate: new FormControl<Date | null>(null),
     toDate: new FormControl<Date | null>(null),
   });
@@ -66,7 +77,7 @@ export class ClaimFilters {
 
   /** Only the filters that have a value; an unset one must not be sent at all. */
   private criteria(): ClaimSearchCriteria {
-    const { claimNumber, policyNumber, status, fromDate, toDate } = this.form.getRawValue();
+    const { claimNumber, policyNumber, status, market, fromDate, toDate } = this.form.getRawValue();
     const criteria: ClaimSearchCriteria = {};
     if (claimNumber.trim()) {
       criteria.claimNumber = claimNumber.trim();
@@ -76,6 +87,9 @@ export class ClaimFilters {
     }
     if (status) {
       criteria.status = status;
+    }
+    if (market) {
+      criteria.market = market;
     }
     if (fromDate) {
       criteria.fromDate = toIsoDate(fromDate);

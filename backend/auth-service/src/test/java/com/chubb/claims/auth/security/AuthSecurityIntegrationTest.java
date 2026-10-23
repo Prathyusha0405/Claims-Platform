@@ -80,7 +80,7 @@ class AuthSecurityIntegrationTest {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"fullName":"Mallory","email":"%s","password":"%s","role":"ADMIN"}""".formatted(email, PASSWORD)))
+                                {"fullName":"Mallory","email":"%s","password":"%s","role":"MANAGER"}""".formatted(email, PASSWORD)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.role").value("CLAIMANT"));
     }
@@ -107,11 +107,11 @@ class AuthSecurityIntegrationTest {
     }
 
     @Test
-    void seededOfficerAndAdminCanLogInWithTheirRoles() throws Exception {
-        login(DemoUserSeeder.OFFICER_EMAIL, DemoUserSeeder.OFFICER_PASSWORD).andExpect(status().isOk())
-                .andExpect(jsonPath("$.user.role").value("OFFICER"));
-        login(DemoUserSeeder.ADMIN_EMAIL, DemoUserSeeder.ADMIN_PASSWORD).andExpect(status().isOk())
-                .andExpect(jsonPath("$.user.role").value("ADMIN"));
+    void seededClaimsStaffAndManagerCanLogInWithTheirRoles() throws Exception {
+        login(DemoUserSeeder.STAFF_EMAIL, DemoUserSeeder.STAFF_PASSWORD).andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.role").value("CLAIMS_STAFF"));
+        login(DemoUserSeeder.MANAGER_EMAIL, DemoUserSeeder.MANAGER_PASSWORD).andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.role").value("MANAGER"));
     }
 
     @Test
@@ -125,7 +125,7 @@ class AuthSecurityIntegrationTest {
         String tamperedPayload = parts[1].substring(0, 5) + (first == 'A' ? 'B' : 'A') + parts[1].substring(6);
         String tampered = parts[0] + "." + tamperedPayload + "." + parts[2];
 
-        User user = new User("Ghost", "ghost@example.com", "hashed", Role.ADMIN);
+        User user = new User("Ghost", "ghost@example.com", "hashed", Role.MANAGER);
         ReflectionTestUtils.setField(user, "id", 1L);
         String expired = new JwtService(new JwtProperties(jwtSecret, -1_000L)).generateToken(user);
         String foreign = new JwtService(new JwtProperties("another-secret-key-that-is-long-enough-1234", 3_600_000L)).generateToken(user);
@@ -152,7 +152,7 @@ class AuthSecurityIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer garbage")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"%s"}""".formatted(DemoUserSeeder.OFFICER_EMAIL, DemoUserSeeder.OFFICER_PASSWORD)))
+                                {"email":"%s","password":"%s"}""".formatted(DemoUserSeeder.STAFF_EMAIL, DemoUserSeeder.STAFF_PASSWORD)))
                 .andExpect(status().isOk());
     }
 

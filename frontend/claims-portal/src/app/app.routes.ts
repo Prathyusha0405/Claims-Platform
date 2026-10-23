@@ -6,14 +6,14 @@ import { roleGuard } from '@core/guards/role-guard';
 
 /**
  * Top-level route table. Every page is lazy-loaded; each feature area ships as its own chunk, so for example a
- * claimant never downloads the officer or admin code.
+ * claimant never downloads the claims staff or manager code.
  *
  *   /                                  → /auth/login, where guestGuard sends anyone already signed in on to their
  *                                        role's home page (the redirect itself cannot carry a guard)
  *   /auth/*          PublicLayout      guestGuard      login, register
  *   /claimant/*      AppShell          authGuard + roleGuard('CLAIMANT')
- *   /officer/*       AppShell          authGuard + roleGuard('OFFICER')
- *   /admin/*         AppShell          authGuard + roleGuard('ADMIN')
+ *   /staff/*       AppShell          authGuard + roleGuard('CLAIMS_STAFF')
+ *   /manager/*         AppShell          authGuard + roleGuard('MANAGER')
  *   /forbidden       AppShell          authGuard       "you are signed in but not allowed here"
  *   anything else    (no layout)                       not found
  *
@@ -43,14 +43,14 @@ export const routes: Routes = [
         loadChildren: () => import('@features/claimant/claimant.routes').then((m) => m.CLAIMANT_ROUTES),
       },
       {
-        path: 'officer',
-        canMatch: [roleGuard('OFFICER')],
-        loadChildren: () => import('@features/officer/officer.routes').then((m) => m.OFFICER_ROUTES),
+        path: 'staff',
+        canMatch: [roleGuard('CLAIMS_STAFF')],
+        loadChildren: () => import('@features/staff/staff.routes').then((m) => m.STAFF_ROUTES),
       },
       {
-        path: 'admin',
-        canMatch: [roleGuard('ADMIN')],
-        loadChildren: () => import('@features/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
+        path: 'manager',
+        canMatch: [roleGuard('MANAGER')],
+        loadChildren: () => import('@features/manager/manager.routes').then((m) => m.MANAGER_ROUTES),
       },
       {
         path: 'forbidden',

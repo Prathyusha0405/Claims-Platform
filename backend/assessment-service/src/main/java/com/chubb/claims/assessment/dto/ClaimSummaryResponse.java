@@ -7,16 +7,18 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 
-/** A claim as shown in the officers' work queue. */
+/** A claim as shown in the claims staff's work queue. */
 public record ClaimSummaryResponse(
         Long id,
         String claimNumber,
         String policyNumber,
         String claimType,
+        String market,
         ClaimStatus status,
         BigDecimal claimAmount,
+        String currency,
         LocalDate incidentDate,
-        Long assignedOfficerId,
+        Long assignedStaffId,
         Instant createdAt,
         Instant updatedAt) {
 
@@ -26,10 +28,12 @@ public record ClaimSummaryResponse(
                 claim.claimNumber(),
                 claim.policyNumber(),
                 claim.claimType(),
+                claim.market(),
                 claim.status(),
                 claim.claimAmount(),
+                claim.currency(),
                 claim.incidentDate(),
-                claim.assignedOfficerId(),
+                claim.assignedStaffId(),
                 claim.createdAt(),
                 claim.updatedAt());
     }

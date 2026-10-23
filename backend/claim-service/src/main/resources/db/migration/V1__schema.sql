@@ -4,17 +4,17 @@
 -- Owns three tables and one sequence:
 --     claims          the insurance claims and their lifecycle status
 --     claim_history   append-only audit trail: one row per thing that happened to a claim
---     notifications   one row per recipient per event (claimant, and the officer when information arrives)
+--     notifications   one row per recipient per event (claimant, and the assigned staff member when information arrives)
 --     claim_number_seq  source of the human-readable claim numbers (CLM-<year>-<6 digits>)
 --
 -- Cross-service references are LOGICAL, not foreign keys, because every service has its own database:
 --     claims.claimant_id          -> auth-service users.id (a CLAIMANT)
---     claims.assigned_officer_id  -> auth-service users.id (an OFFICER)
+--     claims.assigned_staff_id  -> auth-service users.id (a CLAIMS_STAFF)
 --
 -- Claim lifecycle (enforced by the application, see ClaimStatus):
 --     SUBMITTED -> UNDER_REVIEW -> MORE_INFO_REQUIRED -> UNDER_REVIEW -> APPROVED | REJECTED -> SETTLED
 -- Business invariant (not a constraint, so tests and future flows stay flexible): a claim is unassigned exactly
--- while it is SUBMITTED; every later status has an assigned officer.
+-- while it is SUBMITTED; every later status has an assigned staff member.
 -- =====================================================================================================================
 
 
@@ -35,12 +35,14 @@ CREATE TABLE claims (
     claimant_name       VARCHAR(100),                                -- snapshot from the token at submission time
     claimant_email      VARCHAR(254),                                -- snapshot from the token at submission time
     claim_type          VARCHAR(30)              NOT NULL,           -- AUTO (motor) | HOME (property) | ...
+    market              VARCHAR(2)               NOT NULL,           -- AU | HK | JP | MY | NZ | SG: where the claim is filed
     incident_date       DATE                     NOT NULL,           -- when the loss happened
     incident_location   VARCHAR(200),                                -- free text: district, city, country
     description         VARCHAR(2000)            NOT NULL,           -- the claimant's account of the loss
-    claim_amount        NUMERIC(15, 2)           NOT NULL,           -- amount claimed; liability exposure sums this
+    claim_amount        NUMERIC(15, 2)           NOT NULL,           -- amount claimed, in `currency` (never converted)
+    currency            VARCHAR(3)               NOT NULL,           -- ISO 4217: the currency of the claim's market
     status              VARCHAR(30)              NOT NULL,           -- see lifecycle above
-    assigned_officer_id BIGINT,                                      -- logical ref -> auth-service users.id; NULL while SUBMITTED
+    assigned_staff_id BIGINT,                                      -- logical ref -> auth-service users.id; NULL while SUBMITTED
     created_at          TIMESTAMP WITH TIME ZONE NOT NULL,           -- audit: submission time
     updated_at          TIMESTAMP WITH TIME ZONE NOT NULL,           -- audit: last change (status change, assignment)
     version             BIGINT                   NOT NULL DEFAULT 0, -- optimistic lock: concurrent changes cannot both win
@@ -48,6 +50,13 @@ CREATE TABLE claims (
     CONSTRAINT uq_claims_claim_number UNIQUE (claim_number),
     CONSTRAINT ck_claims_claim_type   CHECK (claim_type IN
         ('AUTO', 'HOME', 'HEALTH', 'TRAVEL', 'PERSONAL_ACCIDENT', 'OTHER')),
+    CONSTRAINT ck_claims_market       CHECK (market IN ('AU', 'HK', 'JP', 'MY', 'NZ', 'SG')),
+    CONSTRAINT ck_claims_currency     CHECK (currency IN ('AUD', 'HKD', 'JPY', 'MYR', 'NZD', 'SGD')),
+    -- one currency per market: a claim is always in the currency of the market it is filed in
+    CONSTRAINT ck_claims_market_currency CHECK (
+           (market = 'AU' AND currency = 'AUD') OR (market = 'HK' AND currency = 'HKD')
+        OR (market = 'JP' AND currency = 'JPY') OR (market = 'MY' AND currency = 'MYR')
+        OR (market = 'NZ' AND currency = 'NZD') OR (market = 'SG' AND currency = 'SGD')),
     CONSTRAINT ck_claims_status       CHECK (status IN
         ('SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED', 'APPROVED', 'REJECTED', 'SETTLED')),
     CONSTRAINT ck_claims_claim_amount CHECK (claim_amount > 0),
@@ -56,7 +65,8 @@ CREATE TABLE claims (
 
 CREATE INDEX idx_claims_claimant_id          ON claims (claimant_id);                  -- "my claims"
 CREATE INDEX idx_claims_status               ON claims (status);                       -- dashboards, work queue
-CREATE INDEX idx_claims_assigned_officer_id  ON claims (assigned_officer_id, status);  -- officer workload
+CREATE INDEX idx_claims_market               ON claims (market);                       -- filter by market
+CREATE INDEX idx_claims_assigned_staff_id  ON claims (assigned_staff_id, status);  -- staff workload
 CREATE INDEX idx_claims_policy_number        ON claims (policy_number);                -- search by policy
 CREATE INDEX idx_claims_created_at           ON claims (created_at);                   -- date-range search, sorting
 
@@ -71,8 +81,8 @@ CREATE TABLE claim_history (
     from_status       VARCHAR(30),                                   -- NULL for the creation event
     to_status         VARCHAR(30),
     performed_by      BIGINT,                                        -- logical ref -> users.id (who did it)
-    performed_by_role VARCHAR(20),                                   -- CLAIMANT | OFFICER | ADMIN
-    details           VARCHAR(2000),                                 -- officer comment, requested/provided information
+    performed_by_role VARCHAR(20),                                   -- CLAIMANT | CLAIMS_STAFF | MANAGER
+    details           VARCHAR(2000),                                 -- staff comment, requested/provided information
     created_at        TIMESTAMP WITH TIME ZONE NOT NULL,             -- audit: when it happened
 
     CONSTRAINT fk_claim_history_claim FOREIGN KEY (claim_id) REFERENCES claims (id),

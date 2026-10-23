@@ -18,7 +18,7 @@ import { latestInfoRequest } from '@shared/utils/claim-rules';
 import { asApiError, fieldError } from '@shared/utils/errors';
 import { loader } from '@shared/utils/loader';
 
-/** Tracks one claim: where it is in its lifecycle, its details and history, and, when asked, a way to answer the officer. */
+/** Tracks one claim: where it is in its lifecycle, its details and history, and, when asked, a way to answer the claims staff. */
 @Component({
   imports: [
     ClaimOverview,
@@ -52,7 +52,7 @@ export class ClaimDetails {
     ({ claimNumber }) => this.api.get(claimNumber),
   );
 
-  /** What the officer asked for, shown above the reply box. */
+  /** What the claims staff member asked for, shown above the reply box. */
   protected readonly question = computed(() => {
     const claim = this.claim.value();
     return claim === null ? null : latestInfoRequest(claim.history);

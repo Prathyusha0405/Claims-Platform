@@ -40,7 +40,7 @@ public class ClaimController {
     private static final int DEFAULT_PAGE_SIZE = 20;
 
     private static final String SORT_HELP = "Sort with `sort=<field>,<asc|desc>` (repeatable). Allowed fields: "
-            + "`createdAt` (default, newest first), `updatedAt`, `claimNumber`, `policyNumber`, `status`, "
+            + "`createdAt` (default, newest first), `updatedAt`, `claimNumber`, `policyNumber`, `market`, `status`, "
             + "`claimAmount`, `incidentDate`. Pages are zero-based, 20 per page by default; the maximum page size is 100.";
 
     private final ClaimService claimService;
@@ -85,8 +85,8 @@ public class ClaimController {
     @GetMapping("/search")
     @Operation(summary = "Search claims",
             description = "All filters are optional and combined with AND. Claimants only ever see their own claims; "
-                    + "officers and admins search all claims. `fromDate`/`toDate` filter on the submission date (UTC, "
-                    + "both inclusive). " + SORT_HELP)
+                    + "claims staff and managers search all claims. `market` is an exact ISO country code (AU, HK, JP, MY, NZ, SG). "
+                    + "`fromDate`/`toDate` filter on the submission date (UTC, both inclusive). " + SORT_HELP)
     @ApiResponse(responseCode = "400", description = "Invalid filter, date range or sort field",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "401", description = "Missing or invalid token",
@@ -111,7 +111,7 @@ public class ClaimController {
     }
 
     @PostMapping("/{id}/additional-info")
-    @Operation(summary = "Provide additional information requested by an officer",
+    @Operation(summary = "Provide additional information requested by claims staff",
             description = "CLAIMANT only, on their own claim, and only while it is MORE_INFO_REQUIRED. Moves the claim "
                     + "back to UNDER_REVIEW.")
     @ApiResponse(responseCode = "400", description = "Validation failed",

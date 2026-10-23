@@ -17,7 +17,7 @@ import java.io.IOException;
  * Authenticates requests carrying a valid {@code Authorization: Bearer <jwt>} header.
  * <p>
  * The validated token is kept as the authentication's credentials so it can be forwarded to claim-service, which
- * authorizes the officer itself (see {@code BearerTokenForwardingInterceptor}). An absent or invalid token leaves
+ * authorizes the staff member itself (see {@code BearerTokenForwardingInterceptor}). An absent or invalid token leaves
  * the request anonymous; the authorization rules then decide the outcome. Instantiated by {@code SecurityConfig}
  * rather than registered as a bean so it only runs inside the security filter chain.
  */
