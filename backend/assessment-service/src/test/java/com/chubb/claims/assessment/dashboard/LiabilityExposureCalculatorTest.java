@@ -1,8 +1,13 @@
 package com.chubb.claims.assessment.dashboard;
 
 import com.chubb.claims.assessment.client.ClaimStatus;
+import com.chubb.claims.assessment.client.ClaimType;
+import com.chubb.claims.assessment.client.RemoteStatistics;
 import com.chubb.claims.assessment.client.RemoteStatusTotal;
+import com.chubb.claims.assessment.client.RemoteTypeTotal;
+import com.chubb.claims.assessment.client.StatisticsScope;
 import com.chubb.claims.assessment.config.DashboardProperties;
+import com.chubb.claims.assessment.dto.ClaimTypeExposure;
 import com.chubb.claims.assessment.dto.LiabilityExposureResponse;
 import com.chubb.claims.assessment.dto.MarketExposure;
 import com.chubb.claims.assessment.dto.StatusExposure;
@@ -12,6 +17,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -31,11 +37,16 @@ class LiabilityExposureCalculatorTest {
 
     private final LiabilityExposureCalculator calculator = new LiabilityExposureCalculator(RATES);
 
+    /** The totals by status, limited to a market the way the dashboard does, with no breakdown by type. */
+    private LiabilityExposureResponse calculate(String market, List<RemoteStatusTotal> totals, Instant at) {
+        return calculator.calculate(StatisticsScope.ofMarket(market), new RemoteStatistics(totals, List.of(), List.of()), at);
+    }
+
     // ---- the formula ------------------------------------------------------------------------------------------
 
     @Test
     void sumsEveryStatusExceptSettled() {
-        LiabilityExposureResponse result = calculator.calculate(null, List.of(
+        LiabilityExposureResponse result = calculate(null, List.of(
                 total(ClaimStatus.SUBMITTED, 3, "300.00"),
                 total(ClaimStatus.UNDER_REVIEW, 2, "2000.00"),
                 total(ClaimStatus.MORE_INFO_REQUIRED, 1, "500.50"),
@@ -54,7 +65,7 @@ class LiabilityExposureCalculatorTest {
 
     @Test
     void settledClaimsNeverCountTowardsExposure() {
-        LiabilityExposureResponse result = calculator.calculate(null, List.of(total(ClaimStatus.SETTLED, 5, "12345.67")), NOW);
+        LiabilityExposureResponse result = calculate(null, List.of(total(ClaimStatus.SETTLED, 5, "12345.67")), NOW);
 
         assertThat(result.totalLiabilityExposure()).isEqualByComparingTo("0.00");
         assertThat(result.exposedClaims()).isZero();
@@ -63,7 +74,7 @@ class LiabilityExposureCalculatorTest {
 
     @Test
     void noClaimsMeansZeroExposure() {
-        LiabilityExposureResponse result = calculator.calculate(null, List.of(), NOW);
+        LiabilityExposureResponse result = calculate(null, List.of(), NOW);
 
         assertThat(result.totalLiabilityExposure()).isEqualByComparingTo("0.00");
         assertThat(result.totalLiabilityExposure().scale()).isEqualTo(2);
@@ -74,7 +85,7 @@ class LiabilityExposureCalculatorTest {
 
     @Test
     void listsEveryStatusInLifecycleOrderWithZerosWhereThereAreNoClaims() {
-        LiabilityExposureResponse result = calculator.calculate(null, List.of(total(ClaimStatus.APPROVED, 1, "10.00")), NOW);
+        LiabilityExposureResponse result = calculate(null, List.of(total(ClaimStatus.APPROVED, 1, "10.00")), NOW);
 
         assertThat(result.byStatus()).extracting(StatusExposure::status).containsExactly(ClaimStatus.values());
         assertThat(result.byStatus()).filteredOn(entry -> entry.status() != ClaimStatus.APPROVED)
@@ -86,7 +97,7 @@ class LiabilityExposureCalculatorTest {
 
     @Test
     void flagsWhichStatusesTheFormulaIncludes() {
-        LiabilityExposureResponse result = calculator.calculate(null, List.of(), NOW);
+        LiabilityExposureResponse result = calculate(null, List.of(), NOW);
 
         assertThat(result.byStatus()).filteredOn(StatusExposure::includedInExposure)
                 .extracting(StatusExposure::status)
@@ -98,7 +109,7 @@ class LiabilityExposureCalculatorTest {
 
     @Test
     void mergesDuplicateStatusRowsAndToleratesNullAmounts() {
-        LiabilityExposureResponse result = calculator.calculate(null, List.of(
+        LiabilityExposureResponse result = calculate(null, List.of(
                 total(ClaimStatus.SUBMITTED, 1, "100.00"),
                 total(ClaimStatus.SUBMITTED, 2, "50.25"),
                 new RemoteStatusTotal("JP", "JPY", ClaimStatus.APPROVED, 1, null)), NOW);
@@ -110,7 +121,7 @@ class LiabilityExposureCalculatorTest {
 
     @Test
     void doesNotLoseCentsToFloatingPointRounding() {
-        LiabilityExposureResponse result = calculator.calculate(null, List.of(
+        LiabilityExposureResponse result = calculate(null, List.of(
                 total(ClaimStatus.SUBMITTED, 1, "0.10"),
                 total(ClaimStatus.UNDER_REVIEW, 1, "0.20")), NOW);
 
@@ -121,7 +132,7 @@ class LiabilityExposureCalculatorTest {
 
     @Test
     void convertsEachMarketsTotalsToTheReportingCurrencyBeforeAddingThem() {
-        LiabilityExposureResponse result = calculator.calculate(null, List.of(
+        LiabilityExposureResponse result = calculate(null, List.of(
                 row("SG", "SGD", ClaimStatus.SUBMITTED, 2, "270.00"),         // 200.00 USD
                 row("JP", "JPY", ClaimStatus.SUBMITTED, 1, "15000.00"),       // 100.00 USD
                 row("AU", "AUD", ClaimStatus.APPROVED, 1, "3000.00"),         // 2000.00 USD
@@ -137,7 +148,7 @@ class LiabilityExposureCalculatorTest {
     void roundsEachMarketAndStatusOnItsOwnSoEveryBreakdownAddsUpToItsTotal() {
         // 1,000 JPY is 6.666... USD. Two statuses of 1,000 JPY each are 6.67 + 6.67 = 13.34 (not 13.33), because the
         // rounded parts are what is shown, and the total must be the sum of the parts.
-        LiabilityExposureResponse result = calculator.calculate(null, List.of(
+        LiabilityExposureResponse result = calculate(null, List.of(
                 row("JP", "JPY", ClaimStatus.SUBMITTED, 1, "1000.00"),
                 row("JP", "JPY", ClaimStatus.UNDER_REVIEW, 1, "1000.00")), NOW);
 
@@ -150,7 +161,7 @@ class LiabilityExposureCalculatorTest {
 
     @Test
     void listsEveryMarketInItsOwnCurrencyAndInTheReportingCurrency() {
-        LiabilityExposureResponse result = calculator.calculate(null, List.of(
+        LiabilityExposureResponse result = calculate(null, List.of(
                 row("SG", "SGD", ClaimStatus.SUBMITTED, 2, "270.00"),
                 row("JP", "JPY", ClaimStatus.SUBMITTED, 1, "15000.00"),
                 row("JP", "JPY", ClaimStatus.APPROVED, 1, "150000.00"),
@@ -178,7 +189,7 @@ class LiabilityExposureCalculatorTest {
                 row("JP", "JPY", ClaimStatus.SUBMITTED, 1, "15000.00"),
                 row("JP", "JPY", ClaimStatus.SETTLED, 1, "30000.00"));
 
-        LiabilityExposureResponse result = calculator.calculate("JP", totals, NOW);
+        LiabilityExposureResponse result = calculate("JP", totals, NOW);
 
         assertThat(result.market()).isEqualTo("JP");
         assertThat(result.totalLiabilityExposure()).isEqualByComparingTo("100.00");
@@ -190,7 +201,7 @@ class LiabilityExposureCalculatorTest {
 
     @Test
     void aMarketWithOnlySettledClaimsStillAppearsWithNoExposure() {
-        LiabilityExposureResponse result = calculator.calculate(null, List.of(row("AU", "AUD", ClaimStatus.SETTLED, 3, "4500.00")), NOW);
+        LiabilityExposureResponse result = calculate(null, List.of(row("AU", "AUD", ClaimStatus.SETTLED, 3, "4500.00")), NOW);
 
         assertThat(result.byMarket()).singleElement().satisfies(market -> {
             assertThat(market.market()).isEqualTo("AU");
@@ -203,12 +214,86 @@ class LiabilityExposureCalculatorTest {
 
     @Test
     void aCurrencyWithoutAnExchangeRateIsAnErrorNotAGuess() {
-        assertThatThrownBy(() -> calculator.calculate(null, List.of(row("MY", "MYR", ClaimStatus.SUBMITTED, 1, "10.00")), NOW))
+        assertThatThrownBy(() -> calculate(null, List.of(row("MY", "MYR", ClaimStatus.SUBMITTED, 1, "10.00")), NOW))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("MYR");
     }
 
+    // ---- claim types ------------------------------------------------------------------------------------------
+
+    @Test
+    void listsEveryClaimTypeThatHasClaimsInTheReportingCurrencyInTheOrderOfTheTypes() {
+        LiabilityExposureResponse result = calculator.calculate(StatisticsScope.all(), new RemoteStatistics(List.of(), List.of(), List.of(
+                type("JP", "JPY", ClaimType.HOME, ClaimStatus.SUBMITTED, 1, "15000.00"),                 // 100.00 USD
+                type("SG", "SGD", ClaimType.AUTO, ClaimStatus.APPROVED, 2, "270.00"),                    // 200.00 USD
+                type("JP", "JPY", ClaimType.AUTO, ClaimStatus.UNDER_REVIEW, 1, "30000.00"),              // 200.00 USD
+                type("SG", "SGD", ClaimType.AUTO, ClaimStatus.SETTLED, 1, "135.00"))), NOW);             // excluded
+
+        assertThat(result.byClaimType()).extracting(ClaimTypeExposure::claimType).containsExactly(ClaimType.AUTO, ClaimType.HOME);
+        ClaimTypeExposure auto = result.byClaimType().get(0);
+        assertThat(auto.claimCount()).isEqualTo(3);                                      // the settled claim is not exposed
+        assertThat(auto.exposureInReportingCurrency()).isEqualByComparingTo("400.00");
+        ClaimTypeExposure home = result.byClaimType().get(1);
+        assertThat(home.claimCount()).isEqualTo(1);
+        assertThat(home.exposureInReportingCurrency()).isEqualByComparingTo("100.00");
+    }
+
+    @Test
+    void aClaimTypeWithOnlySettledClaimsStillAppearsWithNoExposure() {
+        LiabilityExposureResponse result = calculator.calculate(StatisticsScope.all(), new RemoteStatistics(List.of(), List.of(), List.of(
+                type("AU", "AUD", ClaimType.TRAVEL, ClaimStatus.SETTLED, 3, "4500.00"))), NOW);
+
+        assertThat(result.byClaimType()).singleElement().satisfies(row -> {
+            assertThat(row.claimType()).isEqualTo(ClaimType.TRAVEL);
+            assertThat(row.claimCount()).isZero();
+            assertThat(row.exposureInReportingCurrency()).isEqualByComparingTo("0.00");
+        });
+    }
+
+    @Test
+    void theMarketFilterNarrowsTheTypeBreakdownToo() {
+        RemoteStatistics statistics = new RemoteStatistics(List.of(), List.of(), List.of(
+                type("SG", "SGD", ClaimType.AUTO, ClaimStatus.SUBMITTED, 1, "270.00"),
+                type("JP", "JPY", ClaimType.HOME, ClaimStatus.SUBMITTED, 1, "15000.00")));
+
+        LiabilityExposureResponse result = calculator.calculate(StatisticsScope.ofMarket("JP"), statistics, NOW);
+
+        assertThat(result.byClaimType()).singleElement().satisfies(row -> {
+            assertThat(row.claimType()).isEqualTo(ClaimType.HOME);
+            assertThat(row.exposureInReportingCurrency()).isEqualByComparingTo("100.00");
+        });
+    }
+
+    @Test
+    void eachMarketAndTypeIsRoundedOnItsOwnSoTheTypeFigureIsASumOfRoundedParts() {
+        // 1,000 JPY is 6.666... USD: two types of 1,000 JPY each are 6.67 + 6.67, as the status breakdown is.
+        LiabilityExposureResponse result = calculator.calculate(StatisticsScope.all(), new RemoteStatistics(List.of(), List.of(), List.of(
+                type("JP", "JPY", ClaimType.AUTO, ClaimStatus.SUBMITTED, 1, "1000.00"),
+                type("JP", "JPY", ClaimType.AUTO, ClaimStatus.UNDER_REVIEW, 1, "1000.00"))), NOW);
+
+        assertThat(result.byClaimType()).singleElement()
+                .satisfies(row -> assertThat(row.exposureInReportingCurrency()).isEqualByComparingTo("13.34"));
+    }
+
+    @Test
+    void theFiltersAreEchoedBackOnTheResponse() {
+        StatisticsScope scope = StatisticsScope.of("SG", "HOME", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 10, 31));
+
+        LiabilityExposureResponse result = calculator.calculate(scope, new RemoteStatistics(List.of(), List.of(), List.of()), NOW);
+
+        assertThat(result.market()).isEqualTo("SG");
+        assertThat(result.claimType()).isEqualTo(ClaimType.HOME);
+        assertThat(result.fromDate()).isEqualTo(LocalDate.of(2026, 8, 1));
+        assertThat(result.toDate()).isEqualTo(LocalDate.of(2026, 10, 31));
+        assertThat(result.byClaimType()).isEmpty();
+    }
+
     // ---- fixtures ---------------------------------------------------------------------------------------------
+
+    private static RemoteTypeTotal type(String market, String currency, ClaimType claimType, ClaimStatus status, long count,
+                                        String amount) {
+        return new RemoteTypeTotal(market, currency, claimType, status, count, new BigDecimal(amount));
+    }
 
     /** A Japanese total given in USD terms: the yen amount is 150 times larger, so it converts back to exactly {@code usd}. */
     private static RemoteStatusTotal total(ClaimStatus status, long count, String usd) {

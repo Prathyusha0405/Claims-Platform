@@ -1,0 +1,139 @@
+// Pieces shared by the stacked charts (the same look as BarChart): tokens, tooltip, legend and the table twin.
+// Included from a component's own stylesheet with `@use '../../styles/chart' as chart;`.
+
+// Chart tokens. The two series colours come from the dataviz default palette (slots 1 and 2); the gray is the
+// de-emphasis colour. The app is light-only today, so there is no dark variant yet.
+@mixin tokens {
+  --chart-surface: var(--mat-sys-surface-container-lowest);
+  --chart-grid: #e1e0d9;
+  --chart-baseline: #c3c2b7;
+  --chart-ink: var(--mat-sys-on-surface);
+  --chart-ink-muted: var(--mat-sys-on-surface-variant);
+}
+
+// Value first, label second; the series is keyed by a short line, never a box.
+@mixin tooltip {
+  .tip {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 12px;
+    border: 1px solid var(--mat-sys-outline-variant);
+    border-radius: var(--mat-sys-corner-small);
+    background: var(--mat-sys-surface-container-lowest);
+    box-shadow: var(--mat-sys-level2);
+    transform: translate(-50%, calc(-100% - 4px));
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .tip__title {
+    font: var(--mat-sys-label-medium);
+    color: var(--chart-ink-muted);
+  }
+
+  .tip__row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .tip__value {
+    font: var(--mat-sys-title-small);
+    color: var(--chart-ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tip__label {
+    font: var(--mat-sys-body-small);
+    color: var(--chart-ink-muted);
+  }
+
+  .tip__key {
+    flex: none;
+    align-self: center;
+    width: 12px;
+    height: 3px;
+    border-radius: 2px;
+  }
+
+  .tip__total {
+    padding-top: 4px;
+    border-top: 1px solid var(--mat-sys-outline-variant);
+    font: var(--mat-sys-label-large);
+    color: var(--chart-ink);
+  }
+}
+
+// One swatch per series, always shown for two or more.
+@mixin legend {
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    font: var(--mat-sys-body-small);
+    color: var(--chart-ink-muted);
+  }
+
+  .legend__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend__swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+  }
+}
+
+// The table twin of the chart, behind "View as table".
+@mixin table {
+  .chart__toggle {
+    margin-top: 8px;
+  }
+
+  .chart__table {
+    width: 100%;
+    margin-top: 8px;
+    border-collapse: collapse;
+    font: var(--mat-sys-body-medium);
+
+    th,
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
+      text-align: left;
+      font-weight: normal;
+    }
+
+    thead th {
+      font: var(--mat-sys-label-medium);
+      color: var(--chart-ink-muted);
+    }
+
+    .numeric {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  .chart__table-scroll {
+    overflow-x: auto;
+  }
+}
+
+@mixin empty {
+  .chart__empty {
+    margin: 0;
+    padding: 24px 0;
+    font: var(--mat-sys-body-medium);
+    color: var(--chart-ink-muted);
+  }
+}

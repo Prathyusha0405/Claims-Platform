@@ -51,6 +51,26 @@ public final class ClaimJson {
                   {"staffId":8,"market":"JP","currency":"JPY","status":"MORE_INFO_REQUIRED","claimCount":1,"totalAmount":75075.00},
                   {"staffId":8,"market":"JP","currency":"JPY","status":"APPROVED","claimCount":1,"totalAmount":150000.00},
                   {"staffId":8,"market":"JP","currency":"JPY","status":"REJECTED","claimCount":1,"totalAmount":15000.00},
-                  {"staffId":9,"market":"SG","currency":"SGD","status":"SETTLED","claimCount":2,"totalAmount":1215.00}]}""";
+                  {"staffId":9,"market":"SG","currency":"SGD","status":"SETTLED","claimCount":2,"totalAmount":1215.00}],
+                 "byType":[
+                  {"market":"SG","currency":"SGD","claimType":"AUTO","status":"SUBMITTED","claimCount":1,"totalAmount":135.00},
+                  {"market":"SG","currency":"SGD","claimType":"HOME","status":"SUBMITTED","claimCount":1,"totalAmount":135.00},
+                  {"market":"SG","currency":"SGD","claimType":"AUTO","status":"UNDER_REVIEW","claimCount":2,"totalAmount":2700.00},
+                  {"market":"SG","currency":"SGD","claimType":"AUTO","status":"APPROVED","claimCount":2,"totalAmount":2700.00},
+                  {"market":"SG","currency":"SGD","claimType":"HOME","status":"APPROVED","claimCount":1,"totalAmount":1350.00},
+                  {"market":"SG","currency":"SGD","claimType":"AUTO","status":"SETTLED","claimCount":1,"totalAmount":405.00},
+                  {"market":"SG","currency":"SGD","claimType":"HOME","status":"SETTLED","claimCount":1,"totalAmount":810.00},
+                  {"market":"JP","currency":"JPY","claimType":"AUTO","status":"SUBMITTED","claimCount":1,"totalAmount":15000.00},
+                  {"market":"JP","currency":"JPY","claimType":"AUTO","status":"MORE_INFO_REQUIRED","claimCount":1,"totalAmount":75075.00},
+                  {"market":"JP","currency":"JPY","claimType":"AUTO","status":"APPROVED","claimCount":1,"totalAmount":150000.00},
+                  {"market":"JP","currency":"JPY","claimType":"HOME","status":"REJECTED","claimCount":1,"totalAmount":15000.00}]}""";
+    }
+
+    /** The same 13 claims as {@link #statistics()}, submitted over two weeks: 6 in the first, 7 in the second. */
+    public static String trend() {
+        return """
+                {"granularity":"WEEK","periods":[
+                  {"start":"2026-08-03","claimsByStatus":{"SUBMITTED":2,"UNDER_REVIEW":1,"MORE_INFO_REQUIRED":0,"APPROVED":2,"REJECTED":0,"SETTLED":1}},
+                  {"start":"2026-08-10","claimsByStatus":{"SUBMITTED":1,"UNDER_REVIEW":1,"MORE_INFO_REQUIRED":1,"APPROVED":2,"REJECTED":1,"SETTLED":1}}]}""";
     }
 }

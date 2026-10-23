@@ -4,7 +4,8 @@
 -- Owns three tables and one sequence:
 --     claims          the insurance claims and their lifecycle status
 --     claim_history   append-only audit trail: one row per thing that happened to a claim
---     notifications   one row per recipient per event (claimant, and the assigned staff member when information arrives)
+--     notifications   one row per recipient per event (the claimant; every claims staff member for a new claim; the
+--                     assigned staff member when the claimant sends information)
 --     claim_number_seq  source of the human-readable claim numbers (CLM-<year>-<6 digits>)
 --
 -- Cross-service references are LOGICAL, not foreign keys, because every service has its own database:
@@ -96,6 +97,7 @@ CREATE TABLE claim_history (
 );
 
 CREATE INDEX idx_claim_history_claim_id ON claim_history (claim_id, created_at);       -- a claim's timeline
+CREATE INDEX idx_claim_history_actor    ON claim_history (performed_by_role, performed_by);  -- who has acted as claims staff
 
 
 -- ---------------------------------------------------------------------------------------------------------------------

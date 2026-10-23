@@ -4,10 +4,18 @@ import com.chubb.claims.claim.config.SecurityConfig;
 import com.chubb.claims.claim.dto.ApproveClaimRequest;
 import com.chubb.claims.claim.dto.ClaimStatisticsResponse;
 import com.chubb.claims.claim.dto.ClaimSummaryResponse;
+import com.chubb.claims.claim.dto.ClaimTrendResponse;
+import com.chubb.claims.claim.dto.ClaimTrendResponse.Granularity;
 import com.chubb.claims.claim.dto.StaffStatusTotal;
 import com.chubb.claims.claim.dto.RejectClaimRequest;
 import com.chubb.claims.claim.dto.RequestInfoRequest;
+import com.chubb.claims.claim.dto.StatisticsCriteria;
 import com.chubb.claims.claim.dto.StatusTotal;
+import com.chubb.claims.claim.dto.TrendCriteria;
+import com.chubb.claims.claim.dto.TrendPeriod;
+import com.chubb.claims.claim.dto.TypeStatusTotal;
+import com.chubb.claims.claim.exception.InvalidRequestException;
+import com.chubb.claims.claim.service.ClaimTrendService;
 import com.chubb.claims.claim.entity.ClaimStatus;
 import com.chubb.claims.claim.entity.ClaimType;
 import com.chubb.claims.claim.entity.Currency;
@@ -33,6 +41,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -60,6 +69,9 @@ class InternalClaimControllerTest {
 
     @MockitoBean
     private ClaimService claimService;
+
+    @MockitoBean
+    private ClaimTrendService claimTrendService;
 
     @MockitoBean
     private JwtService jwtService;
@@ -205,18 +217,23 @@ class InternalClaimControllerTest {
     void claimantsCannotUseTheInternalReads() throws Exception {
         mockMvc.perform(get("/api/internal/claims/10").with(as(CLAIMANT))).andExpect(status().isForbidden());
         mockMvc.perform(get("/api/internal/claims/statistics").with(as(CLAIMANT))).andExpect(status().isForbidden());
-        verifyNoInteractions(claimService);
+        mockMvc.perform(get("/api/internal/claims/trend").with(as(CLAIMANT))).andExpect(status().isForbidden());
+        verifyNoInteractions(claimService, claimTrendService);
     }
 
     @Test
     void statisticsAreReadableByClaimsStaffAndManagers() throws Exception {
-        when(claimService.statistics()).thenReturn(new ClaimStatisticsResponse(
+        when(claimService.statistics(any(StatisticsCriteria.class))).thenReturn(new ClaimStatisticsResponse(
                 List.of(new StatusTotal(Market.JP, Currency.JPY, ClaimStatus.SUBMITTED, 2, new BigDecimal("30000.00"))),
-                List.of(new StaffStatusTotal(7L, Market.JP, Currency.JPY, ClaimStatus.UNDER_REVIEW, 1, new BigDecimal("10000.00")))));
+                List.of(new StaffStatusTotal(7L, Market.JP, Currency.JPY, ClaimStatus.UNDER_REVIEW, 1, new BigDecimal("10000.00"))),
+                List.of(new TypeStatusTotal(Market.JP, Currency.JPY, ClaimType.HOME, ClaimStatus.SUBMITTED, 2, new BigDecimal("30000.00")))));
 
         for (AuthenticatedUser caller : List.of(CLAIMS_STAFF, MANAGER)) {
             mockMvc.perform(get("/api/internal/claims/statistics").with(as(caller)))
                     .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.byType[0].market").value("JP"))
+                    .andExpect(jsonPath("$.byType[0].claimType").value("HOME"))
+                    .andExpect(jsonPath("$.byType[0].claimCount").value(2))
                     .andExpect(jsonPath("$.byStatus[0].market").value("JP"))
                     .andExpect(jsonPath("$.byStatus[0].currency").value("JPY"))
                     .andExpect(jsonPath("$.byStatus[0].status").value("SUBMITTED"))
@@ -227,6 +244,70 @@ class InternalClaimControllerTest {
                     .andExpect(jsonPath("$.byStaff[0].currency").value("JPY"))
                     .andExpect(jsonPath("$.byStaff[0].status").value("UNDER_REVIEW"));
         }
+    }
+
+    @Test
+    void statisticsCanBeNarrowedByClaimTypeAndSubmissionDates() throws Exception {
+        when(claimService.statistics(any(StatisticsCriteria.class)))
+                .thenReturn(new ClaimStatisticsResponse(List.of(), List.of(), List.of()));
+
+        mockMvc.perform(get("/api/internal/claims/statistics").with(as(MANAGER))
+                        .param("claimType", "HOME").param("fromDate", "2026-08-01").param("toDate", "2026-10-31"))
+                .andExpect(status().isOk());
+
+        verify(claimService).statistics(new StatisticsCriteria(ClaimType.HOME, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 10, 31)));
+    }
+
+    @Test
+    void statisticsWithNoFiltersMeansEveryClaim() throws Exception {
+        when(claimService.statistics(any(StatisticsCriteria.class)))
+                .thenReturn(new ClaimStatisticsResponse(List.of(), List.of(), List.of()));
+
+        mockMvc.perform(get("/api/internal/claims/statistics").with(as(MANAGER))).andExpect(status().isOk());
+
+        verify(claimService).statistics(new StatisticsCriteria(null, null, null));
+    }
+
+    @Test
+    void badStatisticsFiltersAreClientErrors() throws Exception {
+        mockMvc.perform(get("/api/internal/claims/statistics").with(as(MANAGER)).param("claimType", "BOAT"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.claimType").value(org.hamcrest.Matchers.containsString("allowed values")));
+        mockMvc.perform(get("/api/internal/claims/statistics").with(as(MANAGER)).param("fromDate", "yesterday"))
+                .andExpect(status().isBadRequest());
+
+        when(claimService.statistics(any(StatisticsCriteria.class)))
+                .thenThrow(new InvalidRequestException("fromDate must not be after toDate"));
+        mockMvc.perform(get("/api/internal/claims/statistics").with(as(MANAGER))
+                        .param("fromDate", "2026-10-31").param("toDate", "2026-08-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("fromDate must not be after toDate"));
+    }
+
+    @Test
+    void theTrendIsReadableByClaimsStaffAndManagersAndTakesFourFilters() throws Exception {
+        when(claimTrendService.trend(any(TrendCriteria.class))).thenReturn(new ClaimTrendResponse(Granularity.WEEK,
+                List.of(new TrendPeriod(LocalDate.of(2026, 8, 3), Map.of(ClaimStatus.SUBMITTED, 2L, ClaimStatus.APPROVED, 1L)))));
+
+        for (AuthenticatedUser caller : List.of(CLAIMS_STAFF, MANAGER)) {
+            mockMvc.perform(get("/api/internal/claims/trend").with(as(caller))
+                            .param("market", "SG").param("claimType", "AUTO")
+                            .param("fromDate", "2026-08-01").param("toDate", "2026-10-31"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.granularity").value("WEEK"))
+                    .andExpect(jsonPath("$.periods[0].start").value("2026-08-03"))
+                    .andExpect(jsonPath("$.periods[0].claimsByStatus.SUBMITTED").value(2))
+                    .andExpect(jsonPath("$.periods[0].claimsByStatus.APPROVED").value(1));
+        }
+        verify(claimTrendService, org.mockito.Mockito.times(2)).trend(
+                new TrendCriteria(Market.SG, ClaimType.AUTO, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 10, 31)));
+    }
+
+    @Test
+    void anUnknownMarketOnTheTrendIsAClientError() throws Exception {
+        mockMvc.perform(get("/api/internal/claims/trend").with(as(MANAGER)).param("market", "XX"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.market").value(org.hamcrest.Matchers.containsString("allowed values")));
     }
 
     // ---- helpers ----------------------------------------------------------------------------------------------

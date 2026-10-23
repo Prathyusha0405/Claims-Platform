@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.util.UriBuilder;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -106,14 +107,49 @@ public class RestClaimServiceClient implements ClaimServiceClient {
     }
 
     @Override
-    public RemoteStatistics getStatistics() {
+    public RemoteStatistics getStatistics(StatisticsScope scope) {
         return call(() -> restClient.get()
-                .uri(CLAIMS_API + "/statistics")
+                .uri(uri -> {
+                    uri.path(CLAIMS_API + "/statistics");
+                    addFilters(uri, scope, false);
+                    return uri.build();
+                })
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, (request, response) -> {
                     throw translate(response);
                 })
                 .body(RemoteStatistics.class));
+    }
+
+    @Override
+    public RemoteTrend getTrend(StatisticsScope scope) {
+        return call(() -> restClient.get()
+                .uri(uri -> {
+                    uri.path(CLAIMS_API + "/trend");
+                    addFilters(uri, scope, true);
+                    return uri.build();
+                })
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, (request, response) -> {
+                    throw translate(response);
+                })
+                .body(RemoteTrend.class));
+    }
+
+    /** Only the filters that are set go on the URL, so an unfiltered dashboard asks for exactly what it always did. */
+    private static void addFilters(UriBuilder uri, StatisticsScope scope, boolean includeMarket) {
+        if (includeMarket && scope.market() != null) {
+            uri.queryParam("market", scope.market());
+        }
+        if (scope.claimType() != null) {
+            uri.queryParam("claimType", scope.claimType());
+        }
+        if (scope.fromDate() != null) {
+            uri.queryParam("fromDate", scope.fromDate());
+        }
+        if (scope.toDate() != null) {
+            uri.queryParam("toDate", scope.toDate());
+        }
     }
 
     private RemoteClaim postDecision(Long claimId, String action, Object body) {

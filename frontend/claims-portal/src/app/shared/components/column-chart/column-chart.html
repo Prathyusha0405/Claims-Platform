@@ -1,0 +1,120 @@
+<figure class="chart" #chart>
+  @if (views().length === 0) {
+    <p class="chart__empty">{{ emptyText() }}</p>
+  } @else {
+    <div class="plot-wrap" role="group" [attr.aria-label]="caption()">
+      <div class="yaxis" aria-hidden="true">
+        @for (tick of ticks(); track tick.pct) {
+          <span class="ytick" [style.bottom.%]="tick.pct">{{ tick.text }}</span>
+        }
+      </div>
+
+      <div class="plot">
+        @for (tick of ticks(); track tick.pct) {
+          @if (tick.grid) {
+            <span class="gridline" [style.bottom.%]="tick.pct" aria-hidden="true"></span>
+          }
+        }
+        <div class="slots">
+          @for (view of views(); track view.title) {
+            <div
+              class="slot"
+              role="img"
+              tabindex="0"
+              [attr.aria-label]="view.description"
+              (pointermove)="showAt(view, $event, chart)"
+              (pointerleave)="hide()"
+              (focus)="showFor(view, $event)"
+              (blur)="hide()"
+            >
+              <span class="col" aria-hidden="true">
+                @for (segment of view.segments; track segment.key) {
+                  <span
+                    class="seg"
+                    [class.seg--end]="segment.end"
+                    [style.height.%]="segment.height"
+                    [style.background]="segment.color"
+                  ></span>
+                }
+              </span>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="xaxis" aria-hidden="true">
+        @for (view of views(); track view.title) {
+          <span class="xslot">
+            @if (view.showLabel) {
+              <span class="xlabel">{{ view.label }}</span>
+            }
+          </span>
+        }
+      </div>
+    </div>
+
+    @if (tooltip(); as tip) {
+      <div class="tip" role="presentation" [style.left.px]="tip.x" [style.top.px]="tip.y">
+        <span class="tip__title">{{ tip.view.title }}</span>
+        @for (entry of tip.view.entries; track entry.key) {
+          <span class="tip__row">
+            <span class="tip__key" [style.background]="entry.color" aria-hidden="true"></span>
+            <span class="tip__value">{{ entry.valueText }}</span>
+            <span class="tip__label">{{ entry.label }}</span>
+          </span>
+        }
+        <span class="tip__total">Total {{ tip.view.totalText }}</span>
+      </div>
+    }
+
+    @if (series().length >= 2) {
+      <ul class="legend" aria-label="Legend">
+        @for (item of series(); track item.key) {
+          <li class="legend__item">
+            <span class="legend__swatch" [style.background]="item.color" aria-hidden="true"></span>
+            {{ item.label }}
+          </li>
+        }
+      </ul>
+    }
+
+    <button
+      mat-button
+      type="button"
+      class="chart__toggle"
+      [attr.aria-expanded]="tableOpen()"
+      (click)="tableOpen.set(!tableOpen())"
+    >
+      <mat-icon aria-hidden="true">{{ tableOpen() ? 'expand_less' : 'table_chart' }}</mat-icon>
+      {{ tableOpen() ? 'Hide table' : 'View as table' }}
+    </button>
+
+    @if (tableOpen()) {
+      <div class="chart__table-scroll">
+        <table class="chart__table">
+          <caption class="visually-hidden">{{ caption() }}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{{ labelHeading() }}</th>
+              @for (item of series(); track item.key) {
+                <th scope="col" class="numeric">{{ item.label }}</th>
+              }
+              <th scope="col" class="numeric">{{ totalHeading() }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (view of views(); track view.title) {
+              <tr>
+                <th scope="row">{{ view.title }}</th>
+                @for (entry of view.entries; track entry.key) {
+                  <td class="numeric">{{ entry.valueText }}</td>
+                }
+                <td class="numeric">{{ view.totalText }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</figure>

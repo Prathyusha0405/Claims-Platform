@@ -1,7 +1,11 @@
 package com.chubb.claims.claim.seed;
 
+import com.chubb.claims.claim.dto.ClaimTrendResponse;
 import com.chubb.claims.claim.dto.StaffStatusTotal;
+import com.chubb.claims.claim.dto.StatisticsCriteria;
 import com.chubb.claims.claim.dto.StatusTotal;
+import com.chubb.claims.claim.dto.TrendCriteria;
+import com.chubb.claims.claim.dto.TypeStatusTotal;
 import com.chubb.claims.claim.entity.Claim;
 import com.chubb.claims.claim.entity.ClaimEventType;
 import com.chubb.claims.claim.entity.ClaimHistory;
@@ -10,12 +14,15 @@ import com.chubb.claims.claim.entity.ClaimType;
 import com.chubb.claims.claim.entity.Currency;
 import com.chubb.claims.claim.entity.Market;
 import com.chubb.claims.claim.entity.Notification;
+import com.chubb.claims.claim.event.ClaimsStaffDirectory;
 import com.chubb.claims.claim.repository.ClaimHistoryRepository;
 import com.chubb.claims.claim.repository.ClaimRepository;
+import com.chubb.claims.claim.repository.ClaimScope;
 import com.chubb.claims.claim.repository.NotificationRepository;
 import com.chubb.claims.claim.security.Role;
 import com.chubb.claims.claim.security.TestJwt;
 import com.chubb.claims.claim.service.ClaimNumberGenerator;
+import com.chubb.claims.claim.service.ClaimTrendService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -67,6 +74,12 @@ class SeedDataIntegrationTest {
 
     @Autowired
     private NotificationRepository notificationRepository;
+
+    @Autowired
+    private ClaimsStaffDirectory staffDirectory;
+
+    @Autowired
+    private ClaimTrendService claimTrendService;
 
     @Autowired
     private ClaimNumberGenerator claimNumberGenerator;
@@ -203,7 +216,7 @@ class SeedDataIntegrationTest {
     void dashboardFiguresMatchTheOnesDocumentedInTheSeedFile() {
         Map<ClaimStatus, Long> counts = new EnumMap<>(ClaimStatus.class);
         Map<Market, BigDecimal> exposureByMarket = new java.util.TreeMap<>();   // each in its own market's currency
-        for (StatusTotal total : claimRepository.totalsByStatus()) {
+        for (StatusTotal total : claimRepository.totalsByStatus(ClaimScope.all())) {
             counts.merge(total.status(), total.claimCount(), Long::sum);
             assertThat(total.currency()).as("currency of %s claims", total.market()).isEqualTo(total.market().currency());
             if (total.status() != ClaimStatus.SETTLED) {
@@ -232,7 +245,7 @@ class SeedDataIntegrationTest {
     void staffWorkloadIsUnevenSoTheDashboardHasSomethingToShow() {
         Map<Long, Long> open = new java.util.TreeMap<>();
         Map<Long, Long> total = new java.util.TreeMap<>();
-        for (StaffStatusTotal t : claimRepository.totalsByStaffAndStatus()) {
+        for (StaffStatusTotal t : claimRepository.totalsByStaffAndStatus(ClaimScope.all())) {
             total.merge(t.staffId(), t.claimCount(), Long::sum);
             if (t.status() == ClaimStatus.UNDER_REVIEW || t.status() == ClaimStatus.MORE_INFO_REQUIRED) {
                 open.merge(t.staffId(), t.claimCount(), Long::sum);
@@ -269,6 +282,121 @@ class SeedDataIntegrationTest {
         assertThat(count("SELECT COUNT(*) FROM claim_history h JOIN claims c ON c.id = h.claim_id WHERE h.created_at < c.created_at")).isZero();
         assertThat(count("SELECT COUNT(*) FROM claims c WHERE c.updated_at < (SELECT MAX(h.created_at) FROM claim_history h WHERE h.claim_id = c.id)")).isZero();
         assertThat(count("SELECT COUNT(*) FROM claim_history a JOIN claim_history b ON a.claim_id = b.claim_id AND a.id < b.id AND a.created_at >= b.created_at")).isZero();
+    }
+
+    @Test
+    void claimsByTypeAddUpToTheSameTotalsAndMatchTheDocumentedSplit() {
+        Map<ClaimType, Long> claimsByType = new EnumMap<>(ClaimType.class);
+        for (TypeStatusTotal total : claimRepository.totalsByTypeAndStatus(ClaimScope.all())) {
+            claimsByType.merge(total.claimType(), total.claimCount(), Long::sum);
+            assertThat(total.currency()).isEqualTo(total.market().currency());
+        }
+
+        assertThat(claimsByType).containsOnlyKeys(ClaimType.AUTO, ClaimType.HOME);
+        assertThat(claimsByType.get(ClaimType.AUTO)).isEqualTo(146);      // motor
+        assertThat(claimsByType.get(ClaimType.HOME)).isEqualTo(104);      // property
+        // Every (market, status) total is the sum of its two types, so nothing is lost by splitting.
+        for (StatusTotal status : claimRepository.totalsByStatus(ClaimScope.all())) {
+            long fromTypes = claimRepository.totalsByTypeAndStatus(ClaimScope.all()).stream()
+                    .filter(t -> t.market() == status.market() && t.status() == status.status())
+                    .mapToLong(TypeStatusTotal::claimCount).sum();
+            assertThat(fromTypes).as("%s %s", status.market(), status.status()).isEqualTo(status.claimCount());
+        }
+    }
+
+    @Test
+    void theClaimTypeFilterIsAPureSubsetOfTheSeed() {
+        long motor = claimRepository.totalsByStatus(ClaimScope.of(new StatisticsCriteria(ClaimType.AUTO, null, null))).stream()
+                .mapToLong(StatusTotal::claimCount).sum();
+        long property = claimRepository.totalsByStatus(ClaimScope.of(new StatisticsCriteria(ClaimType.HOME, null, null))).stream()
+                .mapToLong(StatusTotal::claimCount).sum();
+
+        assertThat(motor).isEqualTo(146);
+        assertThat(property).isEqualTo(104);
+        assertThat(claimRepository.totalsByStatus(ClaimScope.of(new StatisticsCriteria(ClaimType.TRAVEL, null, null)))).isEmpty();
+    }
+
+    @Test
+    void theSubmissionWindowCountsTheSameClaimsAsSqlAndSearchDo() throws Exception {
+        long inSeptember = count("SELECT COUNT(*) FROM claims WHERE created_at >= TIMESTAMP WITH TIME ZONE '2026-09-01 00:00:00+00:00' "
+                + "AND created_at < TIMESTAMP WITH TIME ZONE '2026-10-01 00:00:00+00:00'");
+
+        long byStatistics = claimRepository.totalsByStatus(ClaimScope.of(new StatisticsCriteria(null,
+                LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30)))).stream().mapToLong(StatusTotal::claimCount).sum();
+
+        assertThat(byStatistics).isPositive().isLessThan(250).isEqualTo(inSeptember);
+        String staff = "Bearer " + TestJwt.token(jwtSecret, 2L, Role.CLAIMS_STAFF);
+        mockMvc.perform(get("/api/claims/search").param("size", "1").param("fromDate", "2026-09-01").param("toDate", "2026-09-30")
+                        .header(HttpHeaders.AUTHORIZATION, staff))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(inSeptember));
+    }
+
+    @Test
+    void theTrendCoversEverySeededClaimInContiguousPeriodsSizedByTheirSpan() {
+        ClaimTrendResponse trend = claimTrendService.trend(new TrendCriteria(null, null, null, null));
+
+        assertThat(trendTotal(trend)).isEqualTo(250);
+        LocalDate first = jdbc.queryForObject("SELECT MIN(created_at) FROM claims", java.time.OffsetDateTime.class).toInstant()
+                .atOffset(java.time.ZoneOffset.UTC).toLocalDate();
+        LocalDate last = jdbc.queryForObject("SELECT MAX(created_at) FROM claims", java.time.OffsetDateTime.class).toInstant()
+                .atOffset(java.time.ZoneOffset.UTC).toLocalDate();
+        ClaimTrendResponse.Granularity expected = java.time.temporal.ChronoUnit.DAYS.between(first, last) + 1 <= 183
+                ? ClaimTrendResponse.Granularity.WEEK : ClaimTrendResponse.Granularity.MONTH;
+        assertThat(trend.granularity()).isEqualTo(expected);
+        assertContiguous(trend);
+        assertThat(trend.periods().get(0).start()).isBeforeOrEqualTo(first);
+        assertThat(trend.periods().get(trend.periods().size() - 1).start()).isBeforeOrEqualTo(last).isAfter(last.minusMonths(1).minusDays(1));
+    }
+
+    @Test
+    void aNarrowWindowOverTheSeedIsDrawnInWholeWeeksAndCountsTheSameClaimsAsSql() {
+        long inWindow = count("SELECT COUNT(*) FROM claims WHERE created_at >= TIMESTAMP WITH TIME ZONE '2026-09-01 00:00:00+00:00' "
+                + "AND created_at < TIMESTAMP WITH TIME ZONE '2026-10-23 00:00:00+00:00'");
+
+        ClaimTrendResponse trend = claimTrendService.trend(new TrendCriteria(null, null, LocalDate.of(2026, 9, 1), LocalDate.of(2026, 10, 22)));
+
+        assertThat(trend.granularity()).isEqualTo(ClaimTrendResponse.Granularity.WEEK);
+        assertContiguous(trend);
+        assertThat(trendTotal(trend)).isPositive().isEqualTo(inWindow);
+        assertThat(trend.periods().get(0).start()).isEqualTo(LocalDate.of(2026, 8, 31));    // the Monday on or before 1 Sep
+    }
+
+    private static long trendTotal(ClaimTrendResponse trend) {
+        return trend.periods().stream().flatMap(period -> period.claimsByStatus().values().stream()).mapToLong(Long::longValue).sum();
+    }
+
+    /** Weeks start on a Monday and follow each other a week apart; months start on the 1st and follow each other. */
+    private static void assertContiguous(ClaimTrendResponse trend) {
+        assertThat(trend.periods()).isNotEmpty();
+        for (int i = 0; i < trend.periods().size(); i++) {
+            LocalDate start = trend.periods().get(i).start();
+            if (trend.granularity() == ClaimTrendResponse.Granularity.WEEK) {
+                assertThat(start.getDayOfWeek()).isEqualTo(java.time.DayOfWeek.MONDAY);
+            } else {
+                assertThat(start.getDayOfMonth()).isEqualTo(1);
+            }
+            if (i > 0) {
+                LocalDate previous = trend.periods().get(i - 1).start();
+                assertThat(start).isEqualTo(trend.granularity() == ClaimTrendResponse.Granularity.WEEK ? previous.plusWeeks(1) : previous.plusMonths(1));
+            }
+        }
+    }
+
+    @Test
+    void theTrendTotalsFollowTheMarketAndTypeFilters() {
+        long singapore = claimTrendService.trend(new TrendCriteria(Market.SG, null, null, null)).periods().stream()
+                .flatMap(period -> period.claimsByStatus().values().stream()).mapToLong(Long::longValue).sum();
+        long singaporeHome = claimTrendService.trend(new TrendCriteria(Market.SG, ClaimType.HOME, null, null)).periods().stream()
+                .flatMap(period -> period.claimsByStatus().values().stream()).mapToLong(Long::longValue).sum();
+
+        assertThat(singapore).isEqualTo(50);       // the seed's Singapore claims
+        assertThat(singaporeHome).isPositive().isLessThan(singapore);
+    }
+
+    @Test
+    void theFiveSeededClaimsStaffAreAllKnownFromTheHistory() {
+        // New-claim alerts go to the staff the directory knows; every seeded staff member must be among them.
+        assertThat(staffDirectory.claimsStaffIds()).containsExactly(2L, 3L, 4L, 5L, 6L);
     }
 
     @Test

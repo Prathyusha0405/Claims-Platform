@@ -1,0 +1,53 @@
+<form class="filters" [formGroup]="form" role="search" aria-label="Filter the dashboard" (ngSubmit)="$event.preventDefault()">
+  <mat-form-field class="filters__field" subscriptSizing="dynamic">
+    <mat-label>Market</mat-label>
+    <mat-select formControlName="market">
+      <mat-option value="">All markets</mat-option>
+      @for (code of markets; track code) {
+        <mat-option [value]="code">{{ marketLabels[code] }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field class="filters__field" subscriptSizing="dynamic">
+    <mat-label>Period</mat-label>
+    <mat-select formControlName="period">
+      @for (option of periods; track option.value) {
+        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  @if (custom()) {
+    <mat-form-field class="filters__range" subscriptSizing="dynamic">
+      <mat-label>Submitted between</mat-label>
+      <mat-date-range-input [rangePicker]="range">
+        <input matStartDate formControlName="fromDate" placeholder="From" aria-label="Submitted from" />
+        <input matEndDate formControlName="toDate" placeholder="To" aria-label="Submitted to" />
+      </mat-date-range-input>
+      <mat-datepicker-toggle matIconSuffix [for]="range" />
+      <mat-date-range-picker #range />
+    </mat-form-field>
+  }
+
+  <mat-form-field class="filters__field" subscriptSizing="dynamic">
+    <mat-label>Claim type</mat-label>
+    <mat-select formControlName="claimType">
+      <mat-option value="">All types</mat-option>
+      @for (type of claimTypes; track type) {
+        <mat-option [value]="type">{{ claimTypeLabels[type] }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  @if (filtered()) {
+    <button mat-button type="button" class="filters__clear" (click)="clear()">
+      <mat-icon aria-hidden="true">filter_alt_off</mat-icon>
+      Clear filters
+    </button>
+  }
+
+  @if (rangeReversed()) {
+    <p class="filters__error" role="alert">The end date is before the start date, so the dashboard still shows the previous range.</p>
+  }
+</form>

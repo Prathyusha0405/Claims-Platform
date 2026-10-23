@@ -1119,6 +1119,180 @@ one thing not checked is said so.
 
 ---
 
+# 26. Notifications for Claims Staff
+
+## Prompt
+
+> for claim staff notification is not working
+
+No steps or symptom were given, so the first job was to find out whether something was broken.
+
+## Accepted
+
+**What was found.** Nothing was broken. On a fresh start a claims staff member's bell and inbox are both empty (all 200 seeded
+notifications belong to claimants), and the only thing that ever notified staff was a claimant answering a request for information
+on a claim they hold. That path was walked end to end on a private copy of the services and in a real browser: the notification was
+raised for the right staff member only, the bell showed "1 unread", the inbox listed it, following it opened the claim, and the
+badge cleared. The bell also asked for its count only once a minute, so even that alert could take up to 60 seconds to show.
+
+**The question.** Because the likely meaning was "staff expect more than this", the owner was asked what staff should be told about.
+They chose **a new claim being submitted** and **faster bell updates**. The third option offered, sample alerts in the seed data,
+was not chosen, so a staff inbox is still empty until something happens.
+
+**What was built.**
+
+- A new claim now notifies **every claims staff member** ("A new claim CLM-2026-000251 has been submitted and is waiting in the work
+  queue."), as an ordinary notification: unread until read, separate per person, linking to the claim.
+- The bell checks every **10 seconds** instead of 60.
+- To address "every claims staff member", claim-service needed to know who they are. Users live in auth-service and claim-service has
+  no directory, so a small `ClaimsStaffDirectory` interface was added with one implementation, `HistoryClaimsStaffDirectory`, which
+  takes the claims staff to be everyone who has acted on a claim as `CLAIMS_STAFF` in `claim_history`. An index
+  (`idx_claim_history_actor`) was added to V1 for that query, edited in place as before (in-memory databases).
+- The staff list is only asked for on a `CLAIM_CREATED` event; every other event is unchanged.
+
+**The known gap, stated rather than hidden.** An account added after the seed, which has never taken a claim, is not alerted about new
+claims until it takes its first one (it still sees the work queue). All five seeded staff qualify, and a seed test pins that. This is
+written up in the README's known limitations, in `architecture.md` (sections 7, 14 and 15) and in the code's own comments, and a real
+directory would replace that one class.
+
+**Tests.** Claim-service went from 225 to 245 tests (factory, publisher, directory, a repository test for the query, an API
+integration test where staff become known by taking claims and then hear about a later claim while an unknown account and a
+manager do not, and the seed assertion). The front end gained a spec for the bell, which had none (it links each role to its inbox,
+asks at once and then every ten seconds, shows the count, and renders nothing for a manager): 281 tests in 24 files. To check the
+new spec guards the change, the interval was put back to 60 seconds and two of its tests failed, then it was restored.
+
+Verification performed on 2026-10-23:
+
+- claim-service 245 tests and the front end 281 tests pass. The production build passes at 501.15 kB (the same 1.15 kB over the
+  warning budget as before). auth-service and assessment-service were not changed and were not re-run; their last full run (79 and 163) passed.
+- A 15-step script on freshly started services: all five seeded claims staff get exactly one unread alert for a new claim, the manager
+  gets none, the claimant gets only their own message, reading one alert does not touch the others, the claim is in the queue the alert
+  points at, and a second claim alerts them again.
+- In a real browser as a claims staff member: after a claimant filed a claim, the bell changed to "1 unread" 7.9 seconds later with
+  no click or reload, the inbox showed the alert, following it opened the claim with *Take this claim*, and the bell cleared. My first
+  timing run wrongly reported 0.2 seconds, because the badge element exists (hidden) at zero; the check was fixed to look at the bell's
+  accessible label and re-run on fresh services before the figure was used.
+- A new screenshot, `docs/screenshots/12-staff-notifications.png`, is in the README tour.
+
+## Rejected
+
+Asking auth-service for the staff list when a claim is filed. It would mean a service-to-service call inside the claim's transaction
+and a service credential that the design deliberately does not have (services forward the caller's own token).
+
+Role-addressed notifications with a per-user read marker. It avoids needing the staff list, but changes the notification tables and all
+four inbox queries; a small interface with a stand-in was the smaller change that keeps the real fix open.
+
+Seeding sample alerts for staff. Offered, not chosen.
+
+Push updates (server-sent events or a WebSocket) for the bell. Not asked for; ten-second polling is enough for this volume.
+
+## Manual Changes
+
+None recorded. claim-service has to be restarted (a new class, a changed notification step and the new index). The front-end change
+is picked up by the running `ng serve`, but a browser tab opened earlier should be reloaded to get the new interval.
+
+## Reasoning
+
+The report was one line, and the code and a live run showed that what existed worked. The useful move was to say that, ask what was
+expected, and build exactly that: staff learn about work as it arrives instead of discovering it by opening the queue. The directory
+stand-in is the part an interviewer would question, so its limit is documented in four places and its replacement is one class.
+
+---
+
+# 27. Manager Dashboard: Visuals and Filters
+
+## Prompt
+
+> for manager can you create visuals view and filters
+
+The request did not say which visuals or which filters, and each one needs data the dashboards did not have, so the owner was asked.
+They chose all four visuals offered (**claims over time**, a **market comparison chart**, **motor vs property**, **staff workload by
+status**) and two new filters, **date range** and **claim type**, next to the existing market filter.
+
+## Accepted
+
+**A correction to my own brief.** I first described claim type as AUTO or HOME. The system has six types (`AUTO`, `HOME`, `HEALTH`,
+`TRAVEL`, `PERSONAL_ACCIDENT`, `OTHER`) and the claimant form offers all six, so the contract given to the front-end work was
+corrected before it built anything: the claim type filter takes any of the six, and "Motor vs property" became "Claims by type", with
+a fixed colour per type.
+
+**Back end (built here).**
+
+- Claim-service: the date range and claim type narrow the statistics in the database (a half-open time window and a type predicate,
+  no null parameters: `ClaimScope`). A new by-type aggregate follows the dates but never the type filter. A new trend endpoint puts
+  the claims into weeks (up to 183 days) or months, gap-filled with zeros, in UTC (`TrendBuilder`, a pure function).
+- Assessment-service: every dashboard takes `market`, `claimType`, `fromDate`, `toDate` (validated before claim-service is asked)
+  and echoes them back. The status summary and the liability exposure gain `byClaimType`, and a fourth dashboard,
+  `GET /api/dashboard/claims-over-time`, adds the pending and decided totals to each period. The market is still applied here, so the
+  per-market comparison keeps seeing every market.
+- Tests: claim-service 245 to 293, assessment-service 163 to 195.
+
+**Front end (built by a forked sub-agent against a written contract, then checked here).** One filter row above everything it scopes
+(market, period with presets and a custom range, claim type, "Clear filters"); three small chart components with no charting library
+(`bar-chart`, `stacked-bar-chart`, `column-chart`), each with a legend, a tooltip on hover and keyboard focus, and a "View as
+table" twin; and the page: claims over time, claims and exposure by market, claims by type (100% bars), and each staff member's
+workload (under review, awaiting information, decided). The previous render stays on screen, faded, while the four reports reload.
+Colour follows meaning: blue is what needs action, orange the second series, gray decided claims; each claim type has its own fixed
+colour so a filter never repaints the others. Tests: 281 to 367.
+
+**The palette check.** Blue and orange pass every check of the dataviz validator on the white cards (colour-blind separation 24.7,
+contrast above 3:1). The five type colours pass with one warning: aqua, yellow and magenta (Health, Travel, Personal accident) are
+under 3:1 against white. The relief the validator asks for is the table view, the legend and the tooltip, which every chart has; the
+seed data only has Auto and Home. This is written into the README, the architecture and the known limitations.
+
+**Two things I changed after looking at the running page.** A custom range that ends before it starts was sent to the server and came
+back as a load error; the filter row now holds it back and says why (with a test). And the note under the type chart read oddly, so
+it was reworded.
+
+Verification performed on 2026-10-23:
+
+- All three back-end services in one run: 567 tests (auth 79, claim 293, assessment 195), 0 failures, the flaky test included. Front
+  end: 367 tests in 28 files; production build passes at 501.21 kB (1.21 kB over the 500 kB warning budget, up from 501.15), the
+  lazy dashboard chunk is 63.78 kB.
+- A 28-step script on the real services (seed data, spare ports), cross-checking every new figure against something independent: the
+  unfiltered numbers did not move (250 claims, exposure 2,674,303.58 USD); the type rows add up to the totals; a month's range counts
+  the same claims as claim search (59 and 59); the trend sums to 250, its pending months add up to the headline pending, and a
+  window of up to 183 days comes back in weeks; bad input is a 400; claims staff and claimants are refused the new endpoint.
+- The three earlier live checks were re-run on fresh services afterwards and still pass (21, 24 and 15 steps).
+- In headless Chrome: the three filters driven through the real selects, the scope line, "Clear filters" restoring the 2,674,303.58
+  hero, no horizontal scroll at 420 px, tooltips on a column, a stacked segment and the type bars, and the table view of the trend.
+  The screenshots were looked at, not just taken. The README tour has the new ones (`13` to `16`) and the three manager ones that changed
+  were retaken.
+- The by-type exposure adds up to 2,674,303.57 against the headline 2,674,303.58 on the seed data (2,676,155.42 against 2,676,155.44
+  with the API guide's one extra claim). That one-to-two cent difference is real and expected, because each market and type is
+  rounded on its own; it is documented, and the chart shows whole dollars.
+
+## Rejected
+
+A charting library. Three small components in the same family as the existing bar chart did what was needed, in 13 kB over the wire for
+the whole dashboard chunk, and gave full control over the table view, the focus behaviour and the colours.
+
+Bucketing the trend in SQL. Date functions in H2 follow the session's time zone, which would have made the weeks depend on where the
+server runs; reading two values per claim and bucketing in Java in UTC is deterministic and easy to test. The cost is noted as a
+known limitation (a `GROUP BY` or a daily rollup at volume).
+
+Making the by-type exposure agree with the headline to the cent. It would mean changing the granularity of the headline's rounding,
+and with it the documented 2,674,303.58 and every test that pins it. A one-to-two cent difference, written down, was the better trade.
+
+A fixed "motor vs property" chart. It would have hidden the other four types the system allows.
+
+Per-chart filters. One row above everything it scopes keeps every number on the page consistent with every other.
+
+## Manual Changes
+
+None recorded. claim-service and assessment-service have to be restarted (new endpoints, new parameters, new fields). The running
+`ng serve` rebuilds on its own and no proxy prefix changed (`/api/dashboard` was already proxied), so it does not need a restart,
+but a browser tab opened earlier should be reloaded.
+
+## Reasoning
+
+A manager's questions are "is it getting better or worse", "where", "what kind" and "who is carrying it". Each chart answers one of
+them, and the filters make every answer repeatable for a market, a type and a period. The harder part was not the drawing but making
+the numbers trustworthy: each new figure was checked against another source (claim search, the headline, the status summary), and
+the places where two honest figures can differ by a cent are stated where a reader would trip over them.
+
+---
+
 # Key Decisions
 
 1. Microservices over Monolith
@@ -1141,8 +1315,11 @@ one thing not checked is said so.
 18. Currency derived from the market and stored on each claim; dashboards convert to USD at fixed, configured, indicative rates
 19. Roles named Claimant, Claims staff and Manager throughout (codes, URLs, routes, wording)
 20. The claim data uses the same word: `assignedStaffId`, `staffId`, `staffName`, `staff_id` columns and `/api/dashboard/staff-workload`; no "officer" remains in the code
+21. A new claim alerts every claims staff member, found through a `ClaimsStaffDirectory` that reads claim-service's own history until a real directory exists
+22. Dashboard filters (claim type, submission dates) are applied by claim-service in the database; the market stays a filter applied by assessment-service so the per-market comparison keeps every market
+23. The manager's charts are three small in-house components with a table twin each, coloured by meaning (blue acts, orange second, gray decided) and fixed per claim type, checked with the palette validator
 
-The reasoning behind 11 to 20 is in `architecture.md`, sections 4 and 14.
+The reasoning behind 11 to 23 is in `architecture.md`, sections 4 and 14.
 
 ---
 
@@ -1151,7 +1328,9 @@ The reasoning behind 11 to 20 is in `architecture.md`, sections 4 and 14.
 The following items were intentionally deferred:
 
 - A settle endpoint and a `CLAIM_SETTLED` event (nothing moves a claim to SETTLED yet)
-- An officer directory, so managers can assign claims and names replace "Officer #n"
+- A real staff directory (an auth-service lookup), so managers can assign claims, names replace "Staff #n", and new-claim alerts reach staff who have not yet taken a claim
+- Drill-down from the dashboard: clicking a bar or a week to open the matching claims in a list
+- The claims-over-time buckets as a database `GROUP BY` or a daily rollup, once the claim count makes reading every claim in scope too slow
 - Refresh tokens and asymmetric JWT signing
 - Component tests for the officer and admin pages, and a committed end-to-end suite
 - Coverage tooling (JaCoCo, Vitest coverage) in the build, with thresholds, and a fix for the flaky test

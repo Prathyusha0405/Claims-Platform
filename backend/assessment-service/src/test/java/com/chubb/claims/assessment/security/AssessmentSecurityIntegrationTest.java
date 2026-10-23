@@ -21,7 +21,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AssessmentSecurityIntegrationTest extends AbstractStubbedClaimServiceTest {
 
     private static final List<String> DASHBOARDS = List.of(
-            "/api/dashboard/status-summary", "/api/dashboard/staff-workload", "/api/dashboard/liability-exposure");
+            "/api/dashboard/status-summary", "/api/dashboard/staff-workload", "/api/dashboard/liability-exposure",
+            "/api/dashboard/claims-over-time");
 
     private List<MockHttpServletRequestBuilder> allEndpoints() {
         List<MockHttpServletRequestBuilder> requests = new java.util.ArrayList<>();
@@ -97,6 +98,7 @@ class AssessmentSecurityIntegrationTest extends AbstractStubbedClaimServiceTest 
     void managersUseTheDashboardsButNotTheStaffApi() throws Exception {
         String admin = bearer(5L, Role.MANAGER);
         CLAIM_SERVICE.on("GET", "/api/internal/claims/statistics", 200, ClaimJson.statistics());
+        CLAIM_SERVICE.on("GET", "/api/internal/claims/trend", 200, ClaimJson.trend());
 
         for (String dashboard : DASHBOARDS) {
             mockMvc.perform(get(dashboard).header(HttpHeaders.AUTHORIZATION, admin)).andExpect(status().isOk());
@@ -133,6 +135,11 @@ class AssessmentSecurityIntegrationTest extends AbstractStubbedClaimServiceTest 
                 .andExpect(jsonPath("$.paths['/api/dashboard/status-summary'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/dashboard/staff-workload'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/dashboard/liability-exposure'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/dashboard/claims-over-time'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/dashboard/status-summary'].get.parameters[*].name")
+                        .value(hasItems("market", "claimType", "fromDate", "toDate")))
+                .andExpect(jsonPath("$.paths['/api/dashboard/claims-over-time'].get.parameters[*].name")
+                        .value(hasItems("market", "claimType", "fromDate", "toDate")))
                 .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
                 .andExpect(jsonPath("$.paths['/api/staff/claims/unassigned'].get.parameters[*].name")
                         .value(hasItems("page", "size", "sort")))

@@ -46,7 +46,7 @@ puts a reverse proxy with the same routing in front of the built files.
 | `npm start` | Dev server on port 4200 with the API proxy |
 | `npm run build` | Production build into `dist/` (initial bundle 501.15 kB, 126.5 kB transferred, measured 2026-10-23) |
 | `npm run watch` | Development build that rebuilds on change |
-| `npm test` / `npx ng test --watch=false` | Unit tests, 276 tests in 23 files (Vitest, jsdom) |
+| `npm test` / `npx ng test --watch=false` | Unit tests, 367 tests in 28 files (Vitest, jsdom) |
 
 On a OneDrive folder `ng build` and `ng test` can take one to three minutes.
 
@@ -64,7 +64,7 @@ Every page is a lazy route, so a claimant never downloads claims staff or manage
 | `/claimant/notifications`, `/staff/notifications` | Notification inbox (one shared page) | CLAIMANT, CLAIMS_STAFF |
 | `/staff/work-queue` | Unassigned queue (filterable by market) and "my assigned claims" | CLAIMS_STAFF |
 | `/staff/claims/:claimNumber` | Claim review: take, note, request information, approve, reject | CLAIMS_STAFF |
-| `/manager/dashboard` | Status totals, liability exposure, claims staff workload, a Market selector and a By market table (own currency and USD) | MANAGER |
+| `/manager/dashboard` | A filter row (market, period, claim type), status totals, liability exposure, and charts of claims over time, by market, by claim type and per claims staff member, with the By market and workload tables (own currency and USD) | MANAGER |
 | `/forbidden`, anything else | Wrong area for your role, not found | any |
 
 A signed-in user who opens a login URL, or the site root, is sent to the home page of their role. A `?returnUrl=` is
@@ -83,7 +83,7 @@ src/app/
                                  NotificationStore, endpoints.ts (every backend URL in one place)
     models/                      ApiError, session, role
   shared/                        reusable pieces with no feature knowledge
-    components/                  claims table, filters, status chip, progress, timeline, overview, bar chart,
+    components/                  claims table, filters, status chip, progress, timeline, overview, bar, stacked-bar and column charts,
                                  notifications page, text-prompt dialog, load-error
     models/                      claim, page, dashboard, notification, assessment
     utils/                       claim-rules (what claims staff may do), dates, errors, loader
@@ -109,9 +109,14 @@ a page two roles need (notifications) lives in `shared`.
   exposes `value`, `loading` and `error` signals.
 * **What the user may do.** `reviewAccess()` maps claim status and assignee to the claims staff actions offered (take, decide,
   held by someone else, awaiting claimant, closed). It only hides buttons; the backend authorizes every call again.
-* **Dashboards** use an in-house `bar-chart` component with a "View as table" toggle for accessibility. Status colours
-  pair with containers that pass WCAG AA contrast. The Market select re-queries all three reports with `?market=`; the
-  "By market" table always lists every market, in its own currency and in USD.
+* **Dashboards** use three in-house chart components (`bar-chart`, `stacked-bar-chart`, `column-chart`), each with a legend for
+  two or more series, a tooltip on hover and keyboard focus, and a "View as table" twin. One filter row above the page
+  (market, period, claim type, and two dates for a custom period; "Clear filters" appears when something is set) re-queries all four
+  reports together with `?market=&claimType=&fromDate=&toDate=`, and the previous render stays on screen, faded, while they load. A
+  custom range that ends before it starts is not sent: the row says so and the page keeps showing the previous range. The
+  "By market" and "Claims by type" breakdowns never narrow by their own dimension. Colours: blue is what needs action, orange the
+  second series, gray decided claims; each claim type keeps a fixed colour (see architecture §12 for the palette check). Status
+  colours pair with containers that pass WCAG AA contrast.
 * **Money.** `formatMoney` / `MoneyPipe` show an amount with its ISO code and the currency's own decimals (`SGD 3,840.00`,
   `JPY 506,850`). A claim's amount uses the claim's `currency`; dashboard amounts use the report's `reportingCurrency`
   (USD). The new-claim form shows the currency of the chosen market and never sends one.
@@ -121,8 +126,8 @@ a page two roles need (notifications) lives in `shared`.
 
 ## Testing
 
-`npx ng test --watch=false` runs 276 tests: guards, interceptors, stores, API clients, the route table, the auth and
-claimant pages, the work queue's market filter, the manager dashboard, the money formatter, and the utilities. Coverage was 69.7% of lines overall before the market, currency and dashboard work (not re-measured). The claim-review and
+`npx ng test --watch=false` runs 367 tests: guards, interceptors, stores, API clients, the route table, the auth and
+claimant pages, the notification bell (its ten-second refresh), the work queue's market filter, the manager dashboard with its filter row and its three chart components, the money formatter, and the utilities. Coverage was 69.7% of lines overall before the market, currency and dashboard work (not re-measured). The claim-review and
 my-assigned-claims pages have no component specs; they were checked by walking the running app in a browser. The figures,
 how they were measured and the exact commands are in the [root README](../../README.md#tests).
 

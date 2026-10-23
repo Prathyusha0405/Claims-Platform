@@ -1,0 +1,117 @@
+@use '../../styles/chart' as chart;
+
+:host {
+  display: block;
+  @include chart.tokens;
+  // Room kept to the right of the longest bar for its total.
+  --value-room: 10rem;
+}
+
+.chart {
+  position: relative;
+  margin: 0;
+}
+
+.chart__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+// One row: label, then the bar. The whole row is the hover/focus target, never just the thin bar.
+.bar {
+  display: grid;
+  grid-template-columns: minmax(7rem, 11rem) 1fr;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  border-radius: var(--mat-sys-corner-extra-small);
+  outline-offset: 0;
+
+  &:hover,
+  &:focus-visible {
+    background: color-mix(in srgb, var(--mat-sys-primary) 6%, transparent);
+  }
+}
+
+.bar__label {
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: anywhere;
+  font: var(--mat-sys-body-medium);
+  color: var(--chart-ink-muted);
+}
+
+.bar__sub {
+  font: var(--mat-sys-body-small);
+  color: var(--chart-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+// The baseline all bars grow from: a solid hairline.
+.bar__plot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 40px;
+  border-left: 1px solid var(--chart-baseline);
+}
+
+.bar__stack {
+  display: flex;
+  flex: none;
+  min-width: 0;
+}
+
+// Thin (22px, under the 24px cap), square at the baseline, 4px rounded at the data end. Touching segments are separated
+// by a 2px gap in the surface colour (a border that eats into the segment, so the scale stays exact), never a stroke.
+.seg {
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+
+  & + .seg {
+    border-left: 2px solid var(--chart-surface);
+  }
+
+  &--end {
+    border-radius: 0 4px 4px 0;
+  }
+}
+
+// Written inside a segment only when it fits; the colour is white or near-black by the fill, never the series colour.
+.seg__text {
+  font: var(--mat-sys-label-medium);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.bar__value {
+  flex: none;
+  font: var(--mat-sys-label-large);
+  color: var(--chart-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+@include chart.tooltip;
+@include chart.legend;
+@include chart.table;
+@include chart.empty;
+
+@media (max-width: 599.98px) {
+  .bar {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: 4px 0;
+  }
+
+  .bar__label {
+    flex-direction: row;
+    gap: 8px;
+    align-items: baseline;
+  }
+}

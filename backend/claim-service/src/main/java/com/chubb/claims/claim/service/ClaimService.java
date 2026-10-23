@@ -10,6 +10,7 @@ import com.chubb.claims.claim.dto.CreateClaimRequest;
 import com.chubb.claims.claim.dto.PageResponse;
 import com.chubb.claims.claim.dto.RejectClaimRequest;
 import com.chubb.claims.claim.dto.RequestInfoRequest;
+import com.chubb.claims.claim.dto.StatisticsCriteria;
 import com.chubb.claims.claim.entity.Claim;
 import com.chubb.claims.claim.entity.ClaimEventType;
 import com.chubb.claims.claim.entity.ClaimStatus;
@@ -21,6 +22,7 @@ import com.chubb.claims.claim.exception.InvalidStatusTransitionException;
 import com.chubb.claims.claim.exception.NotAssignedStaffException;
 import com.chubb.claims.claim.repository.ClaimHistoryRepository;
 import com.chubb.claims.claim.repository.ClaimRepository;
+import com.chubb.claims.claim.repository.ClaimScope;
 import com.chubb.claims.claim.repository.ClaimSpecifications;
 import com.chubb.claims.claim.security.AuthenticatedUser;
 import com.chubb.claims.claim.security.Role;
@@ -146,10 +148,17 @@ public class ClaimService {
         return ClaimSummaryResponse.from(findById(claimId));
     }
 
-    /** Raw totals per market, currency and status and per staff member; assessment-service derives dashboard metrics from them. */
+    /**
+     * Raw totals per market, currency and status, per staff member and per claim type, over the claims the criteria select
+     * (all of them when it is empty); assessment-service derives dashboard metrics from them.
+     */
     @Transactional(readOnly = true)
-    public ClaimStatisticsResponse statistics() {
-        return new ClaimStatisticsResponse(claimRepository.totalsByStatus(), claimRepository.totalsByStaffAndStatus());
+    public ClaimStatisticsResponse statistics(StatisticsCriteria criteria) {
+        ClaimScope scope = ClaimScope.of(criteria);
+        return new ClaimStatisticsResponse(
+                claimRepository.totalsByStatus(scope),
+                claimRepository.totalsByStaffAndStatus(scope),
+                claimRepository.totalsByTypeAndStatus(scope));
     }
 
     /** SUBMITTED -> UNDER_REVIEW, owned by the calling staff member. */

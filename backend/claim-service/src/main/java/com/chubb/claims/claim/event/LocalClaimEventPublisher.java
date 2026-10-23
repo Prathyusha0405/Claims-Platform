@@ -1,5 +1,6 @@
 package com.chubb.claims.claim.event;
 
+import com.chubb.claims.claim.entity.ClaimEventType;
 import com.chubb.claims.claim.entity.ClaimHistory;
 import com.chubb.claims.claim.repository.ClaimHistoryRepository;
 import com.chubb.claims.claim.repository.NotificationRepository;
@@ -7,6 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 /**
  * In-process publisher. For every event it logs, appends an audit row to claim_history and creates the
@@ -20,11 +23,14 @@ public class LocalClaimEventPublisher implements ClaimEventPublisher {
 
     private final ClaimHistoryRepository claimHistoryRepository;
     private final NotificationRepository notificationRepository;
+    private final ClaimsStaffDirectory claimsStaffDirectory;
 
     public LocalClaimEventPublisher(ClaimHistoryRepository claimHistoryRepository,
-                                    NotificationRepository notificationRepository) {
+                                    NotificationRepository notificationRepository,
+                                    ClaimsStaffDirectory claimsStaffDirectory) {
         this.claimHistoryRepository = claimHistoryRepository;
         this.notificationRepository = notificationRepository;
+        this.claimsStaffDirectory = claimsStaffDirectory;
     }
 
     @Override
@@ -43,6 +49,9 @@ public class LocalClaimEventPublisher implements ClaimEventPublisher {
                 event.details(),
                 event.occurredAt()));
 
-        notificationRepository.saveAll(ClaimNotificationFactory.notificationsFor(event));
+        List<Long> claimsStaffIds = event.type() == ClaimEventType.CLAIM_CREATED
+                ? claimsStaffDirectory.claimsStaffIds()
+                : List.of();
+        notificationRepository.saveAll(ClaimNotificationFactory.notificationsFor(event, claimsStaffIds));
     }
 }

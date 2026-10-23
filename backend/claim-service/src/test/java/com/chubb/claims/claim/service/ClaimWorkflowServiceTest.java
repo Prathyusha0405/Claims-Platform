@@ -6,7 +6,10 @@ import com.chubb.claims.claim.dto.ClaimSummaryResponse;
 import com.chubb.claims.claim.dto.StaffStatusTotal;
 import com.chubb.claims.claim.dto.RejectClaimRequest;
 import com.chubb.claims.claim.dto.RequestInfoRequest;
+import com.chubb.claims.claim.dto.StatisticsCriteria;
 import com.chubb.claims.claim.dto.StatusTotal;
+import com.chubb.claims.claim.dto.TypeStatusTotal;
+import com.chubb.claims.claim.exception.InvalidRequestException;
 import com.chubb.claims.claim.entity.Claim;
 import com.chubb.claims.claim.entity.ClaimEventType;
 import com.chubb.claims.claim.entity.ClaimStatus;
@@ -20,6 +23,7 @@ import com.chubb.claims.claim.exception.InvalidStatusTransitionException;
 import com.chubb.claims.claim.exception.NotAssignedStaffException;
 import com.chubb.claims.claim.repository.ClaimHistoryRepository;
 import com.chubb.claims.claim.repository.ClaimRepository;
+import com.chubb.claims.claim.repository.ClaimScope;
 import com.chubb.claims.claim.security.AuthenticatedUser;
 import com.chubb.claims.claim.security.Role;
 import org.junit.jupiter.api.BeforeEach;
@@ -262,13 +266,41 @@ class ClaimWorkflowServiceTest {
     void statisticsExposeTheRepositoryAggregatesUnchanged() {
         List<StatusTotal> byStatus = List.of(new StatusTotal(Market.SG, Currency.SGD, ClaimStatus.SUBMITTED, 2, new BigDecimal("300.00")));
         List<StaffStatusTotal> byStaff = List.of(new StaffStatusTotal(7L, Market.SG, Currency.SGD, ClaimStatus.UNDER_REVIEW, 1, new BigDecimal("100.00")));
-        when(claimRepository.totalsByStatus()).thenReturn(byStatus);
-        when(claimRepository.totalsByStaffAndStatus()).thenReturn(byStaff);
+        List<TypeStatusTotal> byType = List.of(new TypeStatusTotal(Market.SG, Currency.SGD, ClaimType.AUTO, ClaimStatus.SUBMITTED, 2, new BigDecimal("300.00")));
+        when(claimRepository.totalsByStatus(ClaimScope.all())).thenReturn(byStatus);
+        when(claimRepository.totalsByStaffAndStatus(ClaimScope.all())).thenReturn(byStaff);
+        when(claimRepository.totalsByTypeAndStatus(ClaimScope.all())).thenReturn(byType);
 
-        ClaimStatisticsResponse statistics = claimService.statistics();
+        ClaimStatisticsResponse statistics = claimService.statistics(new StatisticsCriteria(null, null, null));
 
         assertThat(statistics.byStatus()).isEqualTo(byStatus);
         assertThat(statistics.byStaff()).isEqualTo(byStaff);
+        assertThat(statistics.byType()).isEqualTo(byType);
+    }
+
+    @Test
+    void statisticsAskTheRepositoryAboutTheClaimsTheCriteriaSelect() {
+        StatisticsCriteria criteria = new StatisticsCriteria(ClaimType.HOME, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 10, 31));
+        ClaimScope scope = ClaimScope.of(criteria);
+
+        claimService.statistics(criteria);
+
+        assertThat(scope.claimType()).isEqualTo(ClaimType.HOME);
+        assertThat(scope.from()).isEqualTo(Instant.parse("2026-08-01T00:00:00Z"));
+        assertThat(scope.toExclusive()).isEqualTo(Instant.parse("2026-11-01T00:00:00Z"));
+        verify(claimRepository).totalsByStatus(scope);
+        verify(claimRepository).totalsByStaffAndStatus(scope);
+        verify(claimRepository).totalsByTypeAndStatus(scope);
+    }
+
+    @Test
+    void statisticsRefuseAWindowThatEndsBeforeItStarts() {
+        StatisticsCriteria backwards = new StatisticsCriteria(null, LocalDate.of(2026, 10, 31), LocalDate.of(2026, 8, 1));
+
+        assertThatThrownBy(() -> claimService.statistics(backwards))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("fromDate must not be after toDate");
+        verifyNoInteractions(claimRepository);
     }
 
     // ---- helpers ----------------------------------------------------------------------------------------------

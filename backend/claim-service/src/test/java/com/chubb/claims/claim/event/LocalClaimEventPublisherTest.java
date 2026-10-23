@@ -8,6 +8,8 @@ import com.chubb.claims.claim.repository.ClaimHistoryRepository;
 import com.chubb.claims.claim.repository.NotificationRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.InjectMocks;
@@ -19,6 +21,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class LocalClaimEventPublisherTest {
@@ -30,6 +34,9 @@ class LocalClaimEventPublisherTest {
 
     @Mock
     private NotificationRepository notificationRepository;
+
+    @Mock
+    private ClaimsStaffDirectory claimsStaffDirectory;
 
     @InjectMocks
     private LocalClaimEventPublisher publisher;
@@ -62,6 +69,26 @@ class LocalClaimEventPublisherTest {
             assertThat(notification.getClaimId()).isEqualTo(10L);
             assertThat(notification.getMessage()).contains("CLM-2026-000001");
         });
+    }
+
+    @Test
+    void aNewClaimAlsoNotifiesEveryClaimsStaffMemberTheDirectoryKnows() {
+        when(claimsStaffDirectory.claimsStaffIds()).thenReturn(List.of(7L, 9L));
+
+        publisher.publish(new ClaimEvent(ClaimEventType.CLAIM_CREATED, 10L, "CLM-2026-000001", 5L, null,
+                null, ClaimStatus.SUBMITTED, 5L, "CLAIMANT", "Claim submitted", NOW));
+
+        verify(notificationRepository).saveAll(notificationsCaptor.capture());
+        assertThat(notificationsCaptor.getValue()).extracting(Notification::getRecipientId).containsExactly(5L, 7L, 9L);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ClaimEventType.class, mode = EnumSource.Mode.EXCLUDE, names = "CLAIM_CREATED")
+    void onlyANewClaimAsksWhoTheClaimsStaffAre(ClaimEventType type) {
+        publisher.publish(new ClaimEvent(type, 10L, "CLM-2026-000001", 5L, 7L,
+                ClaimStatus.UNDER_REVIEW, ClaimStatus.UNDER_REVIEW, 7L, "CLAIMS_STAFF", "details", NOW));
+
+        verifyNoInteractions(claimsStaffDirectory);
     }
 
     @Test

@@ -12,9 +12,24 @@ final class ClaimNotificationFactory {
     private ClaimNotificationFactory() {
     }
 
-    static List<Notification> notificationsFor(ClaimEvent event) {
+    /**
+     * @param claimsStaffIds every claims staff member; only used for a new claim, which is waiting for any of them
+     */
+    static List<Notification> notificationsFor(ClaimEvent event, List<Long> claimsStaffIds) {
         List<Notification> notifications = new ArrayList<>();
         notifications.add(toClaimant(event, claimantMessage(event)));
+
+        // A new claim joins the shared work queue, so every claims staff member is told it is waiting.
+        if (event.type() == ClaimEventType.CLAIM_CREATED) {
+            for (Long staffId : claimsStaffIds) {
+                notifications.add(new Notification(
+                        staffId,
+                        event.claimId(),
+                        event.type(),
+                        "A new claim " + event.claimNumber() + " has been submitted and is waiting in the work queue.",
+                        event.occurredAt()));
+            }
+        }
 
         // The staff member working the claim needs to know the claimant has answered their request.
         if (event.type() == ClaimEventType.ADDITIONAL_INFO_RECEIVED && event.assignedStaffId() != null) {

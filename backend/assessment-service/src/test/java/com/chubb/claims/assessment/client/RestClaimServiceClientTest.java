@@ -72,7 +72,7 @@ class RestClaimServiceClientTest {
         stub.on("GET", "/api/internal/claims/statistics", 200, ClaimJson.statistics());
 
         client.assign(10L);
-        client.getStatistics();
+        client.getStatistics(StatisticsScope.all());
 
         assertThat(stub.requests()).hasSize(2)
                 .allSatisfy(request -> assertThat(request.header("authorization")).isEqualTo("Bearer staff-token"));
@@ -170,7 +170,7 @@ class RestClaimServiceClientTest {
     void mapsStatistics() {
         stub.on("GET", "/api/internal/claims/statistics", 200, ClaimJson.statistics());
 
-        RemoteStatistics statistics = client.getStatistics();
+        RemoteStatistics statistics = client.getStatistics(StatisticsScope.all());
 
         assertThat(statistics.byStatus()).hasSize(8);
         assertThat(statistics.byStatus().get(0))
@@ -180,16 +180,66 @@ class RestClaimServiceClientTest {
         assertThat(statistics.byStaff()).hasSize(6);
         assertThat(statistics.byStaff().get(2))
                 .isEqualTo(new RemoteStaffStatusTotal(8L, "JP", "JPY", ClaimStatus.MORE_INFO_REQUIRED, 1, new BigDecimal("75075.00")));
+        assertThat(statistics.byType()).hasSize(11);
+        assertThat(statistics.byType().get(1))
+                .isEqualTo(new RemoteTypeTotal("SG", "SGD", ClaimType.HOME, ClaimStatus.SUBMITTED, 1, new BigDecimal("135.00")));
+        assertThat(statistics.byType().get(10))
+                .isEqualTo(new RemoteTypeTotal("JP", "JPY", ClaimType.HOME, ClaimStatus.REJECTED, 1, new BigDecimal("15000.00")));
     }
 
     @Test
     void treatsMissingStatisticsListsAsEmpty() {
         stub.on("GET", "/api/internal/claims/statistics", 200, "{}");
 
-        RemoteStatistics statistics = client.getStatistics();
+        RemoteStatistics statistics = client.getStatistics(StatisticsScope.all());
 
         assertThat(statistics.byStatus()).isEmpty();
         assertThat(statistics.byStaff()).isEmpty();
+        assertThat(statistics.byType()).isEmpty();
+    }
+
+    @Test
+    void anUnfilteredStatisticsRequestHasNoQueryString() {
+        stub.on("GET", "/api/internal/claims/statistics", 200, ClaimJson.statistics());
+
+        client.getStatistics(StatisticsScope.all());
+
+        assertThat(stub.lastRequest().query()).isNull();
+    }
+
+    @Test
+    void statisticsAreNarrowedByTypeAndDatesButNeverByMarket() {
+        stub.on("GET", "/api/internal/claims/statistics", 200, ClaimJson.statistics());
+
+        client.getStatistics(new StatisticsScope(Market.JP, ClaimType.HOME, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 10, 31)));
+
+        // The market is applied by the dashboard itself so that the per-market comparison keeps seeing every market.
+        assertThat(stub.lastRequest().query()).contains("claimType=HOME", "fromDate=2026-08-01", "toDate=2026-10-31")
+                .doesNotContain("market");
+    }
+
+    @Test
+    void theTrendIsNarrowedByEveryFilterIncludingTheMarket() {
+        stub.on("GET", "/api/internal/claims/trend", 200, ClaimJson.trend());
+
+        RemoteTrend trend = client.getTrend(new StatisticsScope(Market.JP, ClaimType.AUTO, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 10, 31)));
+
+        assertThat(stub.lastRequest().query()).contains("market=JP", "claimType=AUTO", "fromDate=2026-08-01", "toDate=2026-10-31");
+        assertThat(trend.granularity()).isEqualTo("WEEK");
+        assertThat(trend.periods()).hasSize(2);
+        assertThat(trend.periods().get(0).start()).isEqualTo(LocalDate.of(2026, 8, 3));
+        assertThat(trend.periods().get(0).claimsByStatus()).containsEntry(ClaimStatus.SUBMITTED, 2L);
+        assertThat(trend.periods().get(1).claimsByStatus()).containsEntry(ClaimStatus.MORE_INFO_REQUIRED, 1L);
+    }
+
+    @Test
+    void anUnfilteredTrendHasNoQueryStringAndMissingPeriodsAreEmpty() {
+        stub.on("GET", "/api/internal/claims/trend", 200, "{\"granularity\":\"WEEK\"}");
+
+        RemoteTrend trend = client.getTrend(StatisticsScope.all());
+
+        assertThat(stub.lastRequest().query()).isNull();
+        assertThat(trend.periods()).isEmpty();
     }
 
     // ---- how it fails -----------------------------------------------------------------------------------------
@@ -218,10 +268,12 @@ class RestClaimServiceClientTest {
     void translatesErrorsOnReadsToo() {
         stub.on("GET", "/api/internal/claims/10", 404, ClaimJson.error(404, "Claim '10' was not found"));
         stub.on("GET", "/api/internal/claims/statistics", 403, ClaimJson.error(403, "You do not have permission"));
+        stub.on("GET", "/api/internal/claims/trend", 403, ClaimJson.error(403, "You do not have permission"));
         stub.on("GET", "/api/claims/search", 400, ClaimJson.error(400, "Unsupported sort field 'x'"));
 
         assertThatThrownBy(() -> client.getClaim(10L)).isInstanceOf(ClaimNotFoundException.class);
-        assertThatThrownBy(() -> client.getStatistics()).isInstanceOf(ClaimAccessDeniedException.class);
+        assertThatThrownBy(() -> client.getStatistics(StatisticsScope.all())).isInstanceOf(ClaimAccessDeniedException.class);
+        assertThatThrownBy(() -> client.getTrend(StatisticsScope.all())).isInstanceOf(ClaimAccessDeniedException.class);
         assertThatThrownBy(() -> client.findUnassigned(null, PageRequest.of(0, 20))).isInstanceOf(InvalidRequestException.class);
     }
 

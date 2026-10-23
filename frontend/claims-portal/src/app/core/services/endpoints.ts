@@ -38,6 +38,7 @@ export const API = {
     statusSummary: '/api/dashboard/status-summary',
     staffWorkload: '/api/dashboard/staff-workload',
     liabilityExposure: '/api/dashboard/liability-exposure',
+    claimsOverTime: '/api/dashboard/claims-over-time',
   },
 } as const;
 

@@ -10,7 +10,7 @@ import { AuthStore } from '@core/services/auth-store';
 import { NotificationStore } from '@core/services/notification-store';
 
 /** How often the badge asks claim-service for the unread count while the app is open. */
-const POLL_MS = 60_000;
+const POLL_MS = 10_000;
 
 /**
  * The bell in the toolbar: a link to the inbox with the unread count on it. Only claimants and claims staff have an

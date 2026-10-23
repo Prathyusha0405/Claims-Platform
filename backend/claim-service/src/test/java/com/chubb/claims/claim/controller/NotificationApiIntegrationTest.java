@@ -151,6 +151,49 @@ class NotificationApiIntegrationTest {
     }
 
     @Test
+    void aNewClaimIsAnnouncedToEveryClaimsStaffMemberWhoHasWorkedAClaim() throws Exception {
+        long jane = randomUserId();
+        long staffA = randomUserId();
+        long staffB = randomUserId();
+        long newcomer = randomUserId();
+        long manager = randomUserId();
+
+        // Each of them becomes known to claim-service by taking a claim. A is known before the second claim
+        // is filed, B only after, so only A hears about the second one.
+        assign(staffA, submitClaim(randomUserId()).get("id").asLong());
+        assign(staffB, submitClaim(randomUserId()).get("id").asLong());
+
+        JsonNode waiting = submitClaim(jane);
+        String claimNumber = waiting.get("claimNumber").asText();
+        String announcement = "A new claim " + claimNumber + " has been submitted and is waiting in the work queue.";
+
+        for (long staff : new long[]{staffA, staffB}) {
+            mockMvc.perform(get("/api/notifications").header(HttpHeaders.AUTHORIZATION, bearer(staff, Role.CLAIMS_STAFF)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[?(@.claimNumber == '" + claimNumber + "')].eventType")
+                            .value(org.hamcrest.Matchers.contains("CLAIM_CREATED")))
+                    .andExpect(jsonPath("$.content[?(@.claimNumber == '" + claimNumber + "')].message")
+                            .value(org.hamcrest.Matchers.contains(announcement)))
+                    .andExpect(jsonPath("$.content[?(@.claimNumber == '" + claimNumber + "')].read")
+                            .value(org.hamcrest.Matchers.contains(false)));
+        }
+        assertThat(unreadCount(staffA, Role.CLAIMS_STAFF)).isEqualTo(2);
+        assertThat(unreadCount(staffB, Role.CLAIMS_STAFF)).isEqualTo(1);
+
+        // Someone who has never worked a claim is not known yet, and managers are never told.
+        assertThat(unreadCount(newcomer, Role.CLAIMS_STAFF)).isZero();
+        assertThat(unreadCount(manager, Role.MANAGER)).isZero();
+
+        // The claimant still gets only their own message, and the alert behaves like any other notification.
+        mockMvc.perform(get("/api/notifications").header(HttpHeaders.AUTHORIZATION, bearer(jane, Role.CLAIMANT)))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].message").value("Your claim " + claimNumber + " has been submitted successfully."));
+        readAll(staffA, Role.CLAIMS_STAFF).andExpect(jsonPath("$.markedRead").value(2));
+        assertThat(unreadCount(staffA, Role.CLAIMS_STAFF)).isZero();
+        assertThat(unreadCount(staffB, Role.CLAIMS_STAFF)).isEqualTo(1);
+    }
+
+    @Test
     void badPagingInputIsRejectedOrClamped() throws Exception {
         long jane = randomUserId();
 

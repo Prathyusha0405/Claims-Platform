@@ -32,5 +32,12 @@ public interface ClaimServiceClient {
     /** UNDER_REVIEW -> MORE_INFO_REQUIRED. */
     RemoteClaim requestInfo(Long claimId, String message);
 
-    RemoteStatistics getStatistics();
+    /**
+     * Aggregate totals for the dashboards over the claims of the given type and submission dates. The scope's market is not
+     * sent: the per-market comparison must see every market, so the market is applied by the dashboard itself.
+     */
+    RemoteStatistics getStatistics(StatisticsScope scope);
+
+    /** Claims submitted per week or month, by current status, over everything the scope selects (market included). */
+    RemoteTrend getTrend(StatisticsScope scope);
 }

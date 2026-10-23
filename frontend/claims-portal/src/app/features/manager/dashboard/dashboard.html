@@ -10,21 +10,15 @@
       </p>
     </div>
     <div class="actions">
-      <mat-form-field class="actions__market" subscriptSizing="dynamic">
-        <mat-label>Market</mat-label>
-        <mat-select [value]="market()" (selectionChange)="filterByMarket($event.value)">
-          <mat-option value="">All markets</mat-option>
-          @for (code of markets; track code) {
-            <mat-option [value]="code">{{ marketLabels[code] }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
       <button mat-stroked-button type="button" [disabled]="refreshing()" (click)="refresh()">
         <mat-icon aria-hidden="true">refresh</mat-icon>
         Refresh
       </button>
     </div>
   </header>
+
+  <!-- One row of filters, above everything it scopes: every figure and chart below follows it. -->
+  <app-dashboard-filters (filtersChange)="applyFilters($event)" />
 
   @if (refreshing()) {
     <mat-progress-bar mode="indeterminate" aria-label="Refreshing the dashboard" />
@@ -81,6 +75,25 @@
     }
   </section>
 
+  <section class="panel" aria-labelledby="trend-title" [class.stale]="trend.loading() && trend.value()">
+    <h2 id="trend-title" class="panel__title">Claims over time</h2>
+    @if (trend.error(); as error) {
+      <app-load-error [error]="error" subject="claims over time" (retry)="refresh()" />
+    } @else if (trend.value()) {
+      <p class="note">
+        Claims filed per {{ trendUnit() }}. Pending is submitted, under review or awaiting information; decided is
+        approved, rejected or settled.
+      </p>
+      <app-column-chart
+        [caption]="'Claims filed per ' + trendUnit()"
+        labelHeading="Period"
+        emptyText="No claims in this selection."
+        [data]="trendColumns()"
+        [series]="pendingDecided"
+      />
+    }
+  </section>
+
   <div class="charts">
     <section class="panel" aria-labelledby="status-title" [class.stale]="summary.loading() && summary.value()">
       <h2 id="status-title" class="panel__title">Claims by status</h2>
@@ -119,10 +132,33 @@
       <app-load-error [error]="error" subject="the market comparison" (retry)="refresh()" />
     } @else if (marketRows().length > 0) {
       <p class="note">
-        Every market, whichever one is selected above. Exposure is in each market's own currency, then converted to
-        {{ exposure.value()?.reportingCurrency }} at indicative fixed rates.
+        Every market, whichever one is selected above (the claim type and dates still apply). Exposure is in each
+        market's own currency in the table, then converted to {{ exposure.value()?.reportingCurrency }} at indicative
+        fixed rates.
       </p>
-      <div class="table-scroll table-scroll--flush">
+      <div class="pair">
+        <div>
+          <h3 class="chart-title">Claims by market</h3>
+          <app-stacked-bar-chart
+            caption="Claims by market"
+            labelHeading="Market"
+            totalHeading="Claims"
+            [rows]="marketClaimRows()"
+            [series]="pendingDecided"
+          />
+        </div>
+        <div>
+          <h3 class="chart-title">Liability exposure by market ({{ exposure.value()?.reportingCurrency }})</h3>
+          <app-bar-chart
+            caption="Liability exposure by market"
+            labelHeading="Market"
+            [valueHeading]="'Exposure (' + exposure.value()?.reportingCurrency + ')'"
+            detailHeading="Claims and own-currency exposure"
+            [data]="marketExposureBars()"
+          />
+        </div>
+      </div>
+      <div class="table-scroll">
         <table mat-table [dataSource]="marketRows()" aria-label="Claims and liability exposure by market">
           <ng-container matColumnDef="market">
             <th mat-header-cell *matHeaderCellDef>Market</th>
@@ -169,6 +205,31 @@
     }
   </section>
 
+  <!-- How the claim types compare: a colour here means a type, fixed per type, with its own legend. -->
+  <section
+    class="panel"
+    aria-labelledby="types-title"
+    [class.stale]="(summary.loading() || exposure.loading()) && typeRows().length > 0"
+  >
+    <h2 id="types-title" class="panel__title">Claims by type</h2>
+    @if (summary.error() ?? exposure.error(); as error) {
+      <app-load-error [error]="error" subject="the claim types" (retry)="refresh()" />
+    } @else if (summary.value() && exposure.value()) {
+      <p class="note">
+        Every claim type that has claims, whichever one is selected above. Exposure is in whole
+        {{ exposure.value()?.reportingCurrency }} and each figure is rounded on its own, so together they can be a dollar away from the total.
+      </p>
+      <app-stacked-bar-chart
+        caption="Claims and liability exposure by claim type"
+        labelHeading="Measure"
+        mode="percent"
+        emptyText="No claims in this selection."
+        [rows]="typeRows()"
+        [series]="typeSeries()"
+      />
+    }
+  </section>
+
   <section class="panel" aria-labelledby="workload-title" [class.stale]="workload.loading() && workload.value()">
     <h2 id="workload-title" class="panel__title">Claims staff workload</h2>
     @if (workload.error(); as error) {
@@ -188,13 +249,14 @@
         <p class="note">
           Open exposure is in {{ report.reportingCurrency }}, converted at indicative fixed rates.
         </p>
-        <h3 class="chart-title">Open claims per staff member</h3>
-        <app-bar-chart
-          caption="Open claims per staff member"
+        <h3 class="chart-title">Claims per staff member</h3>
+        <p class="note">Open claims are in colour; decided claims (approved, rejected or settled) are gray, for context.</p>
+        <app-stacked-bar-chart
+          caption="Claims per staff member"
           labelHeading="Staff member"
-          valueHeading="Open claims"
-          detailHeading="Breakdown"
-          [data]="workloadBars()"
+          totalHeading="Claims"
+          [rows]="workloadRows()"
+          [series]="workloadSeries"
         />
 
         <div class="table-scroll">

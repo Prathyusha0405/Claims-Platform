@@ -1,0 +1,139 @@
+@use '../../styles/chart' as chart;
+
+:host {
+  display: block;
+  @include chart.tokens;
+  // The plot, without its x-axis band. The container below adds the band, so nothing scrolls inside the card.
+  --plot-height: 220px;
+  --axis-band: 28px;
+}
+
+.chart {
+  position: relative;
+  margin: 0;
+}
+
+// y-axis ticks | plot, then the x-axis band under the plot. The fixed height includes the axis band.
+.plot-wrap {
+  display: grid;
+  grid-template-columns: 2.75rem 1fr;
+  grid-template-rows: var(--plot-height) var(--axis-band);
+}
+
+.yaxis {
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
+}
+
+// Axis ticks are columns of numbers: tabular figures, muted ink.
+.ytick {
+  position: absolute;
+  right: 8px;
+  transform: translateY(50%);
+  font: var(--mat-sys-label-small);
+  color: var(--chart-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.plot {
+  position: relative;
+  grid-column: 2;
+  grid-row: 1;
+  border-bottom: 1px solid var(--chart-baseline);
+}
+
+// Hairline, solid, recessive.
+.gridline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px solid var(--chart-grid);
+}
+
+.slots {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+
+// The whole slot above a column is the hover and focus target, far wider than the column itself.
+.slot {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
+  height: 100%;
+  outline-offset: -2px;
+  border-radius: var(--mat-sys-corner-extra-small);
+
+  &:hover,
+  &:focus-visible {
+    background: color-mix(in srgb, var(--mat-sys-primary) 6%, transparent);
+  }
+}
+
+// Thin (24px at most), growing from the baseline.
+.col {
+  display: flex;
+  flex-direction: column-reverse;
+  width: min(70%, 24px);
+  height: 100%;
+}
+
+// Segments stack from the bottom. The 2px gap between touching segments is a transparent border that is not painted
+// with the fill, so it shows the surface and the scale stays exact; the top segment is rounded 4px.
+.seg {
+  flex: none;
+  box-sizing: border-box;
+  background-clip: padding-box;
+
+  & + .seg {
+    border-top: 2px solid transparent;
+  }
+
+  &--end {
+    border-radius: 4px 4px 0 0;
+  }
+}
+
+.xaxis {
+  display: flex;
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.xslot {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.xlabel {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: var(--mat-sys-label-small);
+  color: var(--chart-ink-muted);
+  white-space: nowrap;
+}
+
+@include chart.tooltip;
+
+// Here the tooltip hangs below its anchor (the top of the plot) instead of above it.
+.tip {
+  transform: translate(-50%, 0);
+}
+
+@include chart.legend;
+@include chart.table;
+@include chart.empty;
+
+@media (max-width: 599.98px) {
+  :host {
+    --plot-height: 180px;
+  }
+}

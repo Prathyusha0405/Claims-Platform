@@ -1,7 +1,12 @@
 package com.chubb.claims.assessment.service;
 
 import com.chubb.claims.assessment.client.ClaimStatus;
+import com.chubb.claims.assessment.client.ClaimType;
+import com.chubb.claims.assessment.client.RemoteStatistics;
+import com.chubb.claims.assessment.client.RemoteTypeTotal;
+import com.chubb.claims.assessment.client.StatisticsScope;
 import com.chubb.claims.assessment.client.RemoteStatusTotal;
+import com.chubb.claims.assessment.dto.ClaimTypeExposure;
 import com.chubb.claims.assessment.dto.LiabilityExposureResponse;
 import com.chubb.claims.assessment.dto.MarketExposure;
 import com.chubb.claims.assessment.dto.StatusExposure;
@@ -37,10 +42,13 @@ public class LiabilityExposureCalculator {
     }
 
     /**
-     * @param market the market the headline figures are limited to, or null for every market
-     * @param totals every (market, status) total claim-service reported; {@code byMarket} always covers all of them
+     * @param scope      what the figures are limited to; the market narrows the headline figures only
+     * @param statistics every total claim-service reported for the date range and claim type; {@code byMarket} always covers
+     *                   every market and {@code byClaimType} every claim type
      */
-    public LiabilityExposureResponse calculate(String market, List<RemoteStatusTotal> totals, Instant generatedAt) {
+    public LiabilityExposureResponse calculate(StatisticsScope scope, RemoteStatistics statistics, Instant generatedAt) {
+        String market = scope.market() == null ? null : scope.market().name();
+        List<RemoteStatusTotal> totals = statistics.byStatus();
         Map<ClaimStatus, Long> counts = new EnumMap<>(ClaimStatus.class);
         Map<ClaimStatus, BigDecimal> amounts = new EnumMap<>(ClaimStatus.class);
         for (RemoteStatusTotal total : totals) {
@@ -70,8 +78,33 @@ public class LiabilityExposureCalculator {
             byStatus.add(new StatusExposure(status, count, amount, included));
         }
 
-        return new LiabilityExposureResponse(exchangeRates.reportingCurrency(), market, exposure, exposedClaims, excluded,
-                FORMULA, List.copyOf(byStatus), byMarket(totals), generatedAt);
+        return new LiabilityExposureResponse(exchangeRates.reportingCurrency(), market, scope.claimType(), scope.fromDate(),
+                scope.toDate(), exposure, exposedClaims, excluded, FORMULA, List.copyOf(byStatus), byMarket(totals),
+                byClaimType(market, statistics.byType()), generatedAt);
+    }
+
+    /**
+     * One row per claim type that has claims (even if all are settled), in the order of the claim types. Each (market, type,
+     * status) total is converted and rounded on its own, like the status breakdown, so the figures are whole sums of rounded
+     * parts; they can differ from the same type's share of the headline by a few cents, because the headline is rounded per
+     * (market, status) instead.
+     */
+    private List<ClaimTypeExposure> byClaimType(String market, List<RemoteTypeTotal> typeTotals) {
+        Map<ClaimType, TypeAccumulator> types = new EnumMap<>(ClaimType.class);
+        for (RemoteTypeTotal total : typeTotals) {
+            if (market != null && !market.equals(total.market())) {
+                continue;
+            }
+            TypeAccumulator accumulator = types.computeIfAbsent(total.claimType(), type -> new TypeAccumulator());
+            if (total.status().countsTowardLiability()) {
+                accumulator.claims += total.claimCount();
+                accumulator.reporting = accumulator.reporting.add(
+                        exchangeRates.toReportingCurrency(total.currency(), total.totalAmount()));
+            }
+        }
+        List<ClaimTypeExposure> rows = new ArrayList<>();
+        types.forEach((type, accumulator) -> rows.add(new ClaimTypeExposure(type, accumulator.claims, accumulator.reporting)));
+        return List.copyOf(rows);
     }
 
     /** One row per market that has claims (even if all are settled), in country-code order. */
@@ -91,6 +124,11 @@ public class LiabilityExposureCalculator {
 
     private static BigDecimal zero() {
         return BigDecimal.ZERO.setScale(MONEY_SCALE);
+    }
+
+    private static final class TypeAccumulator {
+        private long claims;
+        private BigDecimal reporting = zero();
     }
 
     private static final class Accumulator {

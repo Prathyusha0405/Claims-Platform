@@ -13,8 +13,8 @@ A claims management platform assessment for **Chubb APAC**: three Spring Boot mi
 ![Flyway](https://img.shields.io/badge/Flyway-migrations-CC0200?style=flat-square&logo=flyway&logoColor=white)
 
 ![Local build](https://img.shields.io/badge/Local_Java_27_build-passed-2EA44F?style=flat-square)
-![Backend tests](https://img.shields.io/badge/Backend_tests-467_passed-2EA44F?style=flat-square)
-![Frontend tests](https://img.shields.io/badge/Frontend_tests-276_passed-2EA44F?style=flat-square)
+![Backend tests](https://img.shields.io/badge/Backend_tests-567_passed-2EA44F?style=flat-square)
+![Frontend tests](https://img.shields.io/badge/Frontend_tests-367_passed-2EA44F?style=flat-square)
 ![Last verified](https://img.shields.io/badge/Last_verified-2026--10--23-blue?style=flat-square)
 
 [Quick start](#quick-start) · [Build & test](#tests) · [API guide](docs/api-guide.md) · [Requirements](#requirements-coverage) · [Architecture](architecture.md) · [AI journal](AI_WORKING_JOURNAL.md)
@@ -30,8 +30,8 @@ workload.
 | Role | Code | Can do |
 |---|---|---|
 | **Claimant** | `CLAIMANT` | Register, sign in, file a claim, see and track their own claims, answer a claims staff member's request for information, read notifications |
-| **Claims staff** | `CLAIMS_STAFF` | See the work queue, take a claim, approve, reject or ask for more information, add internal notes, read notifications |
-| **Manager** | `MANAGER` | Dashboard: totals by status, liability exposure, claims staff workload, all by market and in USD |
+| **Claims staff** | `CLAIMS_STAFF` | See the work queue, take a claim, approve, reject or ask for more information, add internal notes, read notifications (a new claim is waiting; a claimant has answered) |
+| **Manager** | `MANAGER` | Dashboard: totals by status, liability exposure, and charts of claims over time, by market, by claim type and per claims staff member, in USD; filtered by market, claim type and submission dates |
 
 ![The manager dashboard](docs/screenshots/02-manager-dashboard.png)
 
@@ -58,8 +58,8 @@ Chubb APAC processes motor and property claims across six markets. The scenario 
 | Who | The problem today | What the platform provides |
 |---|---|---|
 | **Claimants** | Submit by phone or email, then wait with no visibility | Self-service portal: file a claim online, follow it on a progress tracker and a timeline, get an in-app notification at every step, and answer a claims staff member's request for information in the same place ([claimant screens](#a-tour-of-the-app)) |
-| **Claims staff** | Work from shared inboxes and spreadsheets, with no consolidated view of their workload | One work queue of submitted claims nobody holds (oldest first), *Take claim* in one click, a tab for the claims they hold, search by claim number, policy number, status, market, date range and claims staff member, internal notes, and an audit trail on every claim |
-| **Managers** | No real-time picture of outstanding claims or liability exposure | Manager dashboard, computed live on every request: totals by status, pending, liability exposure (`SUM(claimAmount) WHERE status != SETTLED`), claims and value by status, each market side by side in its own currency and in USD, and per-claims staff workload; every dashboard can be narrowed to one market |
+| **Claims staff** | Work from shared inboxes and spreadsheets, with no consolidated view of their workload | One work queue of submitted claims nobody holds (oldest first), *Take claim* in one click, a tab for the claims they hold, search by claim number, policy number, status, market, date range and claims staff member, internal notes, an in-app alert whenever a new claim is waiting in the queue, and an audit trail on every claim |
+| **Managers** | No real-time picture of outstanding claims or liability exposure | Manager dashboard, computed live on every request: totals by status, pending, liability exposure (`SUM(claimAmount) WHERE status != SETTLED`), claims and value by status, each market side by side in its own currency and in USD, and per-claims staff workload, with charts for claims over time, each market, each claim type and each staff member; every figure and chart can be narrowed by market, claim type and submission dates |
 
 How far the demo goes toward the scenario, stated plainly:
 
@@ -69,10 +69,12 @@ How far the demo goes toward the scenario, stated plainly:
   Singapore) and is in that market's currency (AUD, HKD, JPY, MYR, NZD, SGD). The claimant chooses the market when filing,
   claims can be searched and sorted by it, and a claims staff member can narrow the work queue to one market. The manager dashboard can be
   read for every market or for one, with each market's exposure side by side in its own currency and in USD, so a manager can
-  now answer "what is our exposure in Japan?". The USD figures use fixed, indicative exchange rates, not live ones. See
+  now answer "what is our exposure in Japan?". The same page can also be narrowed to a claim type and to a range of submission
+  dates, and charts the claims over time. The USD figures use fixed, indicative exchange rates, not live ones. See
   [known limitations](#known-limitations).
-* **Visibility without phone or email.** Claimants are told of progress inside the portal (in-app notifications). Email and
-  SMS alerts, and taking claims by phone or email, are not built.
+* **Visibility without phone or email.** Claimants are told of progress inside the portal (in-app notifications), and claims
+  staff are told when a new claim is waiting or a claimant has answered them. Email and SMS alerts, and taking claims by
+  phone or email, are not built.
 
 ## At a glance
 
@@ -181,9 +183,14 @@ Screenshots of the running app on the seed data (development build, 1440 × 900)
 | **Claims staff: work queue.** Submitted claims nobody holds, oldest first, with a market column and filter and a one-click *Take claim*; a second tab lists the claims the staff member holds. | ![Work queue](docs/screenshots/07-staff-work-queue.png) |
 | **Claims staff: work queue by market.** Choosing a market (here Japan) narrows the queue to the claims filed there: 19 of the 100 waiting in the seed data. | ![Work queue by market](docs/screenshots/09-staff-work-queue-by-market.png) |
 | **Claims staff: claim review.** The decision actions (request information, reject, approve), the claim's facts and internal notes the claimant never sees. | ![Claim review](docs/screenshots/08-staff-claim-review.png) |
-| **Manager: dashboard.** Liability exposure in USD with its formula, a Market selector, status totals, and claims and value by status; claims staff workload is further down the page. | ![Dashboard](docs/screenshots/02-manager-dashboard.png) |
-| **Manager: by market.** Every market side by side: claims, pending, and exposure in its own currency and in USD. It stays in view whichever market is selected above. | ![By market](docs/screenshots/10-manager-dashboard-by-market.png) |
+| **Claims staff: notifications.** An alert for every new claim waiting in the queue, and one when a claimant answers a request for information; the bell checks every ten seconds. | ![Staff notifications](docs/screenshots/12-staff-notifications.png) |
+| **Manager: dashboard.** One row of filters (market, period, claim type) above everything it scopes, then liability exposure in USD with its formula and the status totals. | ![Dashboard](docs/screenshots/02-manager-dashboard.png) |
+| **Manager: claims over time.** Claims filed per month (or per week for a window of up to six months), split into pending (blue) and decided (gray); hover for the numbers, *View as table* for the same figures as text. | ![Claims over time](docs/screenshots/13-manager-claims-over-time.png) |
+| **Manager: by market.** Claims by market (pending and decided) beside liability exposure by market, then the table with each market's exposure in its own currency and in USD. It stays in view whichever market is selected above, and follows the claim type and dates. | ![By market](docs/screenshots/10-manager-dashboard-by-market.png) |
+| **Manager: claims by type.** How claims, and liability exposure, divide between claim types (Auto and Home in the seed data) as 100% bars. Each type keeps its own colour, and the chart stays whichever type is selected above. | ![Claims by type](docs/screenshots/14-manager-claims-by-type.png) |
+| **Manager: claims staff workload.** Each staff member's claims by under review, awaiting information and decided, busiest first, with the table underneath. | ![Claims staff workload](docs/screenshots/15-manager-staff-workload.png) |
 | **Manager: one market.** Choosing Japan narrows the headline figures, the charts and the claims staff workload to Japanese claims. | ![Dashboard for Japan](docs/screenshots/11-manager-dashboard-japan.png) |
+| **Manager: three filters at once.** Singapore, Auto, last 90 days: every figure and chart follows, and the claims over time switch to weeks. | ![Filtered dashboard](docs/screenshots/16-manager-filtered.png) |
 
 ## Requirements coverage
 
@@ -199,13 +206,14 @@ How the brief in [CLAUDE.md](CLAUDE.md) maps to the code. "Verified" means check
 | OpenAPI / Swagger | Done | Swagger UI on each service ([below](#api)) |
 | Auth endpoints (register, login, `users/me`) | Done | [auth-service](#api) |
 | Claim endpoints (create, get by number, my-claims, search, additional-info) | Done | plus notification endpoints the UI needs |
-| Assessment endpoints (unassigned, assign, approve, reject, request-info, notes, three dashboards) | Done | plus `GET .../notes` |
+| Assessment endpoints (unassigned, assign, approve, reject, request-info, notes, dashboards) | Done | plus `GET .../notes` and a fourth dashboard, `claims-over-time` |
 | Claim lifecycle, only valid transitions | Done, with one gap | transition table in `ClaimStatus`; nothing can move a claim to `SETTLED` yet ([limitations](#known-limitations)) |
 | Event publisher pattern | Done | `ClaimEventPublisher` + `LocalClaimEventPublisher` (log, audit history, notifications); the brief's events plus `ADDITIONAL_INFO_RECEIVED` |
-| Dashboard: totals, pending, approved, rejected, claims staff workload, liability exposure | Done, by market and in USD | exposure is `SUM(claimAmount) WHERE status != SETTLED` converted to USD at fixed indicative rates, in one class; every dashboard takes an optional `market`, and `byMarket` shows each market in its own currency and in USD |
+| Dashboard: totals, pending, approved, rejected, claims staff workload, liability exposure | Done, by market and in USD | exposure is `SUM(claimAmount) WHERE status != SETTLED` converted to USD at fixed indicative rates, in one class; every dashboard takes an optional `market`, `claimType`, `fromDate` and `toDate`, and `byMarket` shows each market in its own currency and in USD |
+| Manager visuals and filters | Done, beyond the brief | charts of claims over time, by market, by claim type and per claims staff member, each with a table view; filters for market, claim type and submission dates that every figure and chart follows ([API](#api), [architecture §9](architecture.md#9-dashboards)) |
 | Business context: six markets, each in its own currency | Done | a `market` and a `currency` on every claim; market filter on search, the work queue and the dashboards ([business context](#business-context)) |
 | Search by claim number, policy number, status, date range, assigned staff member; paging and sorting | Done, plus market | `GET /api/claims/search`; the work queue also filters by market |
-| Tests: service, controller, security, dashboard (JUnit 5, Mockito, MockMvc) | Done | 467 backend tests, plus 276 front-end tests ([results](#tests)) |
+| Tests: service, controller, security, dashboard (JUnit 5, Mockito, MockMvc) | Done | 567 backend tests, plus 367 front-end tests ([results](#tests)) |
 | Angular: Auth, Claimant, Staff, Manager, Shared, Core; the nine pages; reactive forms; route guards | Done | feature folders of standalone, lazy-loaded components rather than `NgModule`s |
 | README.md, architecture.md, AI_WORKING_JOURNAL.md | Done | [documentation map](#documentation-map) |
 
@@ -251,7 +259,7 @@ Calls need `Authorization: Bearer <accessToken>` from `POST /api/auth/login`. To
 | `POST /api/staff/claims/{id}/assign` | claims staff | Take a claim (becomes *Under review*) |
 | `POST /api/staff/claims/{id}/approve` · `/reject` · `/request-info` | assigned staff member | Decide, with a comment, a reason (required) or a question (required) |
 | `GET` / `POST /api/staff/claims/{id}/notes` | claims staff | Read and add internal notes |
-| `GET /api/dashboard/status-summary` · `/staff-workload` · `/liability-exposure` | manager | Dashboard figures, computed live; optional `market`; money in USD, converted at fixed indicative rates |
+| `GET /api/dashboard/status-summary` · `/staff-workload` · `/liability-exposure` · `/claims-over-time` | manager | Dashboard figures, computed live; optional `market`, `claimType`, `fromDate` and `toDate` (the claim's submission date, UTC, both ends inclusive); money in USD, converted at fixed indicative rates |
 
 Paging is zero-based (`page`, `size`, default 20, capped at 100) and sorting is `sort=field,asc|desc` over a fixed list of
 fields. Every error has the same JSON shape (`timestamp`, `status`, `error`, `message`, `path`, optional
@@ -275,19 +283,19 @@ Everything has a development default; override with environment variables.
 ## Tests
 
 ```powershell
-# Backend: 467 tests (auth 79, claim 225, assessment 163)
+# Backend: 567 tests (auth 79, claim 293, assessment 195)
 cd backend
 .\mvnw.cmd test
 
-# Frontend: 276 tests in 23 files (Vitest + jsdom)
+# Frontend: 367 tests in 28 files (Vitest + jsdom)
 cd frontend\claims-portal
 npx ng test --watch=false
 ```
 
 Backend: service and lifecycle rules, controllers (MockMvc), security (role matrix, forged/expired tokens), dashboards and
 liability maths, repositories and search, and integration tests on H2 + Flyway including the seed data. Frontend: guards,
-interceptors, stores, API clients, routes, the auth and claimant pages, the work queue, the manager dashboard and the
-utilities. Stop running services before
+interceptors, stores, API clients, routes, the auth and claimant pages, the work queue, the manager dashboard with its
+filters and its three chart components, the notification bell and the utilities. Stop running services before
 `mvnw test` if they were started from the same folder, since both write to `target/`.
 
 ### Latest results (2026-10-23, JDK 27)
@@ -295,16 +303,18 @@ utilities. Stop running services before
 | Suite | Tests | Passed | Failed | Skipped |
 |---|---:|---:|---:|---:|
 | auth-service | 79 | 79 | 0 | 0 |
-| claim-service | 225 | 225 | 0 | 0 |
-| assessment-service | 163 | 163 | 0 | 0 |
-| **Backend total** | **467** | **467** | **0** | **0** |
-| Frontend (23 files) | 276 | 276 | 0 | 0 |
-| **All** | **743** | **743** | **0** | **0** |
+| claim-service | 293 | 293 | 0 | 0 |
+| assessment-service | 195 | 195 | 0 | 0 |
+| **Backend total** | **567** | **567** | **0** | **0** |
+| Frontend (28 files) | 367 | 367 | 0 | 0 |
+| **All** | **934** | **934** | **0** | **0** |
 
-Both suites were run in full on 2026-10-23, after the roles and the claims staff data names were renamed, in a copy of
-`backend/` so that running services were not disturbed. All three backend services passed in a single `mvnw test` run, the
-flaky test described under *Known limitations* included, and the production front-end build passes. That is not the whole
-history: earlier the same day, before the renames, the first full backend run had failures. claim-service had 1, a seed
+Both suites were run in full on 2026-10-23, after the manager visuals and filters were added: all three backend services in a
+single `mvnw test` run (in a copy of `backend/`, so that running services were not disturbed), the flaky test described under
+*Known limitations* included, and the front end with `ng test` and a production build. The new dashboard behaviour was also run
+against the real services (seed data, spare ports), where every figure was cross-checked against claim search or against another
+dashboard; the numbers are in [journal section 27](AI_WORKING_JOURNAL.md). That is not the whole history: earlier the same day,
+before the renames, the first full backend run had failures. claim-service had 1, a seed
 assertion that still expected one statistics row per status (fixed since), and assessment-service had **1 out of 163**,
 the flaky test, which has failed under load three times now (on 2026-10-22 and twice on 2026-10-23) and passes on re-run.
 That test has not been fixed.
@@ -395,6 +405,11 @@ README.md · architecture.md · AI_WORKING_JOURNAL.md
 * Per the brief's formula, **rejected claims count toward liability exposure**; only settled ones are excluded.
 * Claims staff can only take claims for themselves, and an assignee is shown as "Staff #n" because there is no staff
   directory.
+* **New-claim alerts reach only the claims staff that claim-service can find.** Users live in auth-service and claim-service
+  has no directory, so it takes the claims staff to be everyone who has already acted on a claim in that role (read from the
+  claim history; `HistoryClaimsStaffDirectory`). All five seeded staff qualify. An account added after the seed is not
+  alerted about new claims until it takes its first one, though it still sees the work queue. The bell checks for new
+  alerts every ten seconds, so one can take up to that long to appear.
 * **One flaky backend test.** `StaffWorkflowIntegrationTest.aStaffMemberTakesAClaimAsksForInformationAndApprovesIt`
   (assessment-service) mints one JWT at the start and later compares it with the token its request helper mints again. A JWT
   carries its issue time to the second, so the two differ whenever the clock ticks over in between. It failed once in the
@@ -407,6 +422,18 @@ README.md · architecture.md · AI_WORKING_JOURNAL.md
 * A claim is always in the currency of its market: there is no way to file, say, a USD-denominated claim in Singapore. Yen are
   stored with two decimals although the currency has none.
 * The market is chosen by the claimant and is not checked against the policy number.
+* **Claims over time is bucketed in memory.** Claim-service reads each claim in scope as two values (when it was submitted and
+  its status) and puts it into its week or month in Java, in UTC. That is fine at this size; at volume the move is a
+  database-side `GROUP BY` or a daily rollup. A window of up to 183 days is drawn in weeks and anything longer in months.
+* **Period presets use the browser's date.** "Last 30 days", "Last 90 days" and "Year to date" are worked out from the browser's
+  local date but read by the server as UTC dates, so a manager well east of UTC can find the range a day off at its edge around
+  midnight.
+* **Exposure by claim type is rounded per market and type**, like the other breakdowns, so its parts can differ from the headline
+  by a few cents (on the seed data and the guide's one extra claim the two types add up to 2,676,155.42 against 2,676,155.44).
+  The chart shows whole dollars.
+* The colour of three of the five claim-type series (Health, Travel, Personal accident) is under 3:1 against the white cards, which
+  the palette validator reports as a warning: the relief is the table view, the legend and the labels. The seed data only has
+  Auto and Home, whose colours pass.
 * **Renames edited the migrations in place.** The role codes (`CLAIMS_STAFF`, `MANAGER`) and the claims-staff data names
   (`assignedStaffId`, `staffId`, `staffName`, the `staff_id` columns, `/api/dashboard/staff-workload`) were changed by editing
   the Flyway `V1` and `V2` files, which works only because the databases are in memory and rebuilt on every start. Against a

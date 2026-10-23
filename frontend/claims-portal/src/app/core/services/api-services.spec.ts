@@ -146,7 +146,7 @@ describe('backend API services', () => {
   });
 
   describe('DashboardApi', () => {
-    it('reads the three manager reports', () => {
+    it('reads the four manager reports', () => {
       const api = TestBed.inject(DashboardApi);
 
       api.statusSummary().subscribe();
@@ -155,26 +155,52 @@ describe('backend API services', () => {
       answer('/api/dashboard/staff-workload', 'GET');
       api.liabilityExposure().subscribe();
       answer('/api/dashboard/liability-exposure', 'GET');
+      api.claimsOverTime().subscribe();
+      answer('/api/dashboard/claims-over-time', 'GET');
     });
-  });
 
-  describe('DashboardApi, limited to a market', () => {
-    it('sends the market only when one is given', () => {
+    it('sends no query parameters while nothing is filtered', () => {
       const api = TestBed.inject(DashboardApi);
 
-      api.statusSummary().subscribe();
-      expect(answer('/api/dashboard/status-summary', 'GET').request.params.has('market')).toBe(false);
+      api.statusSummary({}).subscribe();
+      expect(answer('/api/dashboard/status-summary', 'GET').request.params.keys()).toEqual([]);
       api.staffWorkload().subscribe();
-      expect(answer('/api/dashboard/staff-workload', 'GET').request.params.has('market')).toBe(false);
+      expect(answer('/api/dashboard/staff-workload', 'GET').request.params.keys()).toEqual([]);
       api.liabilityExposure().subscribe();
-      expect(answer('/api/dashboard/liability-exposure', 'GET').request.params.has('market')).toBe(false);
+      expect(answer('/api/dashboard/liability-exposure', 'GET').request.params.keys()).toEqual([]);
+      api.claimsOverTime().subscribe();
+      expect(answer('/api/dashboard/claims-over-time', 'GET').request.params.keys()).toEqual([]);
+    });
 
-      api.statusSummary('JP').subscribe();
-      expect(answer('/api/dashboard/status-summary', 'GET').request.params.get('market')).toBe('JP');
-      api.staffWorkload('HK').subscribe();
-      expect(answer('/api/dashboard/staff-workload', 'GET').request.params.get('market')).toBe('HK');
-      api.liabilityExposure('NZ').subscribe();
-      expect(answer('/api/dashboard/liability-exposure', 'GET').request.params.get('market')).toBe('NZ');
+    it('sends the market, claim type and submission dates the manager chose, on every report', () => {
+      const api = TestBed.inject(DashboardApi);
+      const filters = { market: 'JP', claimType: 'HOME', fromDate: '2026-07-24', toDate: '2026-10-22' } as const;
+
+      api.statusSummary(filters).subscribe();
+      const summary = answer('/api/dashboard/status-summary', 'GET').request.params;
+      api.staffWorkload(filters).subscribe();
+      const workload = answer('/api/dashboard/staff-workload', 'GET').request.params;
+      api.liabilityExposure(filters).subscribe();
+      const exposure = answer('/api/dashboard/liability-exposure', 'GET').request.params;
+      api.claimsOverTime(filters).subscribe();
+      const trend = answer('/api/dashboard/claims-over-time', 'GET').request.params;
+
+      for (const params of [summary, workload, exposure, trend]) {
+        expect(params.get('market')).toBe('JP');
+        expect(params.get('claimType')).toBe('HOME');
+        expect(params.get('fromDate')).toBe('2026-07-24');
+        expect(params.get('toDate')).toBe('2026-10-22');
+      }
+    });
+
+    it('leaves out a filter that is missing or blank, and keeps one end of a date range open', () => {
+      const api = TestBed.inject(DashboardApi);
+
+      api.claimsOverTime({ market: undefined, claimType: 'AUTO', fromDate: '2026-01-01', toDate: '' }).subscribe();
+      const { params } = answer('/api/dashboard/claims-over-time', 'GET').request;
+
+      expect(params.keys().sort()).toEqual(['claimType', 'fromDate']);
+      expect(params.get('claimType')).toBe('AUTO');
     });
   });
 

@@ -4,7 +4,7 @@
 
 // A refetch keeps the frame: the previous figures stay where they are, a little fainter, until the new ones arrive.
 .stale {
-  opacity: 0.6;
+  opacity: 0.55;
   transition: opacity 120ms ease-out;
 }
 
@@ -84,6 +84,20 @@
   }
 }
 
+// Two charts side by side on a wide screen, stacked on a narrow one.
+.pair {
+  display: grid;
+  gap: 24px;
+  margin-bottom: 8px;
+}
+
+@media (min-width: 1100px) {
+  .pair {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
 .queue {
   display: flex;
   align-items: center;
@@ -125,11 +139,6 @@ td.numeric {
   flex-wrap: wrap;
   align-items: center;
   gap: 16px;
-}
-
-.actions__market {
-  width: 220px;
-  max-width: 100%;
 }
 
 .note {

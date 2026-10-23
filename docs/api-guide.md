@@ -240,13 +240,27 @@ curl -s $CLAIM/api/notifications/unread-count -H "Authorization: Bearer $CLAIMAN
 `POST /api/notifications/{id}/read` marks one as read and `POST /api/notifications/read-all` marks everything (`{"markedRead": n}`).
 You only ever see and change your own; another user's id is a `404`.
 
+Claims staff use the same endpoints with their own token. They receive two kinds of notification: `CLAIM_CREATED` for every new
+claim ("A new claim CLM-2026-000251 has been submitted and is waiting in the work queue."), sent to each claims staff member
+claim-service knows of, and `ADDITIONAL_INFO_RECEIVED` when a claimant answers a request on a claim they hold. Managers are
+never notified.
+
+```bash
+curl -s $CLAIM/api/notifications/unread-count -H "Authorization: Bearer $STAFF"
+```
+
 ## 7. Dashboards (manager only)
 
 Computed live from claim-service on every request. Claims are in their own market's currency, so the dashboards report money
 in **USD**, converting each market's totals at the fixed, indicative rates in assessment-service's configuration (per 1 USD:
 AUD 1.50, HKD 7.80, JPY 150, MYR 4.50, NZD 1.65, SGD 1.35; not live rates). Each dashboard takes an optional `market` (`AU`,
 `HK`, `JP`, `MY`, `NZ`, `SG`; anything else is a 400) that narrows the headline figures to that market, while `byMarket` still
-lists every market. With the seed data plus the one claim above (2,500.00 SGD, about 1,851.85 USD):
+lists every market. Every dashboard also takes `claimType` (one of the six types) and `fromDate` / `toDate` (`yyyy-MM-dd`; the
+claim's submission date in UTC, both ends inclusive, either may be left out). All filters are optional and combine with AND, and
+every response echoes the ones that were applied (`market`, `claimType`, `fromDate`, `toDate`; `null` when open). An unknown market
+or claim type, a malformed date, or a range that ends before it starts is a 400. The breakdowns are the comparison, so `byMarket`
+ignores the market filter and `byClaimType` ignores the claim type filter, while each follows the other filters. With the seed
+data plus the one claim above (2,500.00 SGD, about 1,851.85 USD):
 
 ```bash
 curl -s $ASSESS/api/dashboard/status-summary -H "Authorization: Bearer $MANAGER"
@@ -256,9 +270,13 @@ curl -s $ASSESS/api/dashboard/status-summary -H "Authorization: Bearer $MANAGER"
 { "totalClaims": 251, "pendingClaims": 168, "approvedClaims": 29, "rejectedClaims": 18, "settledClaims": 36,
   "claimsByStatus": { "SUBMITTED": 100, "UNDER_REVIEW": 56, "MORE_INFO_REQUIRED": 12,
                       "APPROVED": 29, "REJECTED": 18, "SETTLED": 36 },
-  "market": null,
+  "market": null, "claimType": null, "fromDate": null, "toDate": null,
   "byMarket": [ { "market": "AU", "totalClaims": 70, "pendingClaims": 50, "approvedClaims": 6,
                   "rejectedClaims": 5, "settledClaims": 9 }, ... 5 more ],
+  "byClaimType": [ { "claimType": "AUTO", "totalClaims": 147, "pendingClaims": 98, "approvedClaims": 20,
+                     "rejectedClaims": 10, "settledClaims": 19 },
+                   { "claimType": "HOME", "totalClaims": 104, "pendingClaims": 70, "approvedClaims": 9,
+                     "rejectedClaims": 8, "settledClaims": 17 } ],
   "generatedAt": "2026-10-23T08:27:51.038515600Z" }
 ```
 
@@ -267,7 +285,8 @@ curl -s $ASSESS/api/dashboard/staff-workload -H "Authorization: Bearer $MANAGER"
 ```
 
 ```json
-{ "reportingCurrency": "USD", "market": null, "unassignedClaims": 100,
+{ "reportingCurrency": "USD", "market": null, "claimType": null, "fromDate": null, "toDate": null,
+  "unassignedClaims": 100,
   "staff": [ { "staffId": 2, "staffName": "Olivia Bennett", "openClaims": 20, "underReview": 18,
                   "awaitingInformation": 2, "approved": 13, "rejected": 5, "settled": 16,
                   "totalAssigned": 54, "openExposure": 206317.01 }, ... 4 more ],
@@ -282,13 +301,15 @@ curl -s $ASSESS/api/dashboard/liability-exposure -H "Authorization: Bearer $MANA
 ```
 
 ```json
-{ "reportingCurrency": "USD", "market": null,
+{ "reportingCurrency": "USD", "market": null, "claimType": null, "fromDate": null, "toDate": null,
   "totalLiabilityExposure": 2676155.44, "exposedClaims": 215, "excludedSettledAmount": 480955.52,
   "formula": "SUM(claimAmount) WHERE status != SETTLED",
   "byStatus": [ { "status": "SUBMITTED", "claimCount": 100, "amount": 850718.02, "includedInExposure": true },
                 ... 5 more ],
   "byMarket": [ { "market": "AU", "currency": "AUD", "rate": 1.5, "claimCount": 61,
                   "exposure": 969380.25, "exposureInReportingCurrency": 646253.5 }, ... 5 more ],
+  "byClaimType": [ { "claimType": "AUTO", "claimCount": 128, "exposureInReportingCurrency": 825079.4 },
+                   { "claimType": "HOME", "claimCount": 87, "exposureInReportingCurrency": 1851076.02 } ],
   "generatedAt": "2026-10-23T08:27:51.106878700Z" }
 ```
 
@@ -300,13 +321,81 @@ curl -s "$ASSESS/api/dashboard/liability-exposure?market=JP" -H "Authorization: 
 ```
 
 ```json
-{ "reportingCurrency": "USD", "market": "JP",
+{ "reportingCurrency": "USD", "market": "JP", "claimType": null, "fromDate": null, "toDate": null,
   "totalLiabilityExposure": 602675.5, "exposedClaims": 37, "excludedSettledAmount": 46041,
   "formula": "SUM(claimAmount) WHERE status != SETTLED",
   "byStatus": [ { "status": "SUBMITTED", "claimCount": 19, "amount": 92413, "includedInExposure": true }, ... 5 more ],
   "byMarket": [ ...the same six markets as above... ],
+  "byClaimType": [ { "claimType": "AUTO", "claimCount": 18, "exposureInReportingCurrency": 76172.5 },
+                   { "claimType": "HOME", "claimCount": 19, "exposureInReportingCurrency": 526503 } ],
   "generatedAt": "2026-10-23T08:27:51.175797Z" }
 ```
+
+### Claim type and submission dates
+
+Only the property claims submitted from 1 September to 22 October 2026:
+
+```bash
+curl -s "$ASSESS/api/dashboard/liability-exposure?claimType=HOME&fromDate=2026-09-01&toDate=2026-10-22" -H "Authorization: Bearer $MANAGER"
+```
+
+```json
+{ "reportingCurrency": "USD", "market": null, "claimType": "HOME", "fromDate": "2026-09-01", "toDate": "2026-10-22",
+  "totalLiabilityExposure": 1315261.02, "exposedClaims": 61, "excludedSettledAmount": 0,
+  "formula": "SUM(claimAmount) WHERE status != SETTLED",
+  "byStatus": [ { "status": "SUBMITTED", "claimCount": 41, "amount": 516374, "includedInExposure": true }, ... 5 more ],
+  "byMarket": [ ...every market, counting only the property claims of those dates... ],
+  "byClaimType": [ { "claimType": "AUTO", "claimCount": 84, "exposureInReportingCurrency": 521410.53 },
+                   { "claimType": "HOME", "claimCount": 61, "exposureInReportingCurrency": 1315261.02 } ],
+  "generatedAt": "2026-10-23T11:48:14.049810100Z" }
+```
+
+The headline is the property claims only, while `byClaimType` still lists motor next to property (for the same dates), so one can
+be read against the other. Each type is converted and rounded per market on its own, so the types can differ from the headline by
+a few cents: over the whole seed plus the guide's claim the two add up to 2,676,155.42 against 2,676,155.44.
+
+## 7a. Claims over time (manager only)
+
+How many claims were submitted in each week or month, and where they stand now. It takes the same four filters, the market
+included:
+
+```bash
+curl -s "$ASSESS/api/dashboard/claims-over-time" -H "Authorization: Bearer $MANAGER"
+```
+
+```json
+{ "granularity": "MONTH", "market": null, "claimType": null, "fromDate": null, "toDate": null,
+  "periods": [
+    { "start": "2025-11-01", "totalClaims": 3, "pendingClaims": 0, "decidedClaims": 3,
+      "claimsByStatus": { "SUBMITTED": 0, "UNDER_REVIEW": 0, "MORE_INFO_REQUIRED": 0, "APPROVED": 0, "REJECTED": 0, "SETTLED": 3 } },
+    ... 10 more months ...
+    { "start": "2026-10-01", "totalClaims": 87, "pendingClaims": 86, "decidedClaims": 1,
+      "claimsByStatus": { "SUBMITTED": 78, "UNDER_REVIEW": 7, "MORE_INFO_REQUIRED": 1, "APPROVED": 1, "REJECTED": 0, "SETTLED": 0 } } ],
+  "generatedAt": "2026-10-23T11:48:14.000818100Z" }
+```
+
+The claims span a year, so the periods are months. For a window of up to 183 days they are weeks (starting on Monday), here the
+Singapore motor claims of September:
+
+```bash
+curl -s "$ASSESS/api/dashboard/claims-over-time?market=SG&claimType=AUTO&fromDate=2026-09-01&toDate=2026-09-30" -H "Authorization: Bearer $MANAGER"
+```
+
+```json
+{ "granularity": "WEEK", "market": "SG", "claimType": "AUTO", "fromDate": "2026-09-01", "toDate": "2026-09-30",
+  "periods": [
+    { "start": "2026-08-31", "totalClaims": 1, "pendingClaims": 1, "decidedClaims": 0,
+      "claimsByStatus": { "SUBMITTED": 0, "UNDER_REVIEW": 0, "MORE_INFO_REQUIRED": 1, "APPROVED": 0, "REJECTED": 0, "SETTLED": 0 } },
+    { "start": "2026-09-07", "totalClaims": 2, ... }, { "start": "2026-09-14", "totalClaims": 2, ... },
+    { "start": "2026-09-21", "totalClaims": 2, ... },
+    { "start": "2026-09-28", "totalClaims": 0, "pendingClaims": 0, "decidedClaims": 0,
+      "claimsByStatus": { "SUBMITTED": 0, "UNDER_REVIEW": 0, "MORE_INFO_REQUIRED": 0, "APPROVED": 0, "REJECTED": 0, "SETTLED": 0 } } ],
+  "generatedAt": "2026-10-23T11:48:14.028642600Z" }
+```
+
+`start` is the first day of the period (UTC). The first week begins on the Monday on or before 1 September, and a quiet period is
+a row of zeros, never a missing row. `pendingClaims` is submitted + under review + awaiting information, `decidedClaims` is approved
++ rejected + settled, and each period's `claimsByStatus` has all six statuses. A window with no claims gives `"periods": []`.
 
 An unknown market is refused before claim-service is asked:
 
@@ -314,6 +403,10 @@ An unknown market is refused before claim-service is asked:
 { "status": 400, "error": "Bad Request", "message": "Unknown market 'XX'; allowed values: [AU, HK, JP, MY, NZ, SG]",
   "path": "/api/dashboard/status-summary", "timestamp": "2026-10-23T08:27:51.188396500Z" }
 ```
+
+So are an unknown claim type (`"message": "Unknown claimType 'BOAT'; allowed values: [AUTO, HOME, HEALTH, TRAVEL, PERSONAL_ACCIDENT, OTHER]"`)
+and a range that ends before it starts (`"message": "fromDate must not be after toDate"`). A malformed date is a 400 with the field
+named under `fieldErrors`.
 
 The exposure is the seed's 2,674,303.58 USD plus the new claim's 2,500.00 SGD (about 1,851.85 USD; the cents differ by one
 because each market-and-status total is rounded), and it is not reduced by the approval,

@@ -1,0 +1,111 @@
+<figure class="chart" #chart>
+  @if (views().length === 0) {
+    <p class="chart__empty">{{ emptyText() }}</p>
+  } @else {
+    <div class="chart__rows" role="group" [attr.aria-label]="caption()">
+      @for (view of views(); track view.label) {
+        <div
+          class="bar"
+          role="img"
+          tabindex="0"
+          [attr.aria-label]="view.description"
+          (pointermove)="showAt(view, $event, chart)"
+          (pointerleave)="hide()"
+          (focus)="showFor(view, $event)"
+          (blur)="hide()"
+        >
+          <span class="bar__label">
+            {{ view.label }}
+            @if (percent()) {
+              <span class="bar__sub">{{ view.totalText }}</span>
+            }
+          </span>
+          <span class="bar__plot">
+            <span class="bar__stack" [style.width]="view.stackWidth">
+              @for (segment of view.segments; track segment.key) {
+                <span
+                  class="seg"
+                  [class.seg--end]="segment.end"
+                  [style.width]="segment.width"
+                  [style.background]="segment.color"
+                  aria-hidden="true"
+                >
+                  @if (segment.inside) {
+                    <span class="seg__text" [style.color]="segment.textColor">{{ segment.inside }}</span>
+                  }
+                </span>
+              }
+            </span>
+            @if (!percent()) {
+              <span class="bar__value">{{ view.totalText }}</span>
+            }
+          </span>
+        </div>
+      }
+    </div>
+
+    @if (tooltip(); as tip) {
+      <div class="tip" role="presentation" [style.left.px]="tip.x" [style.top.px]="tip.y">
+        <span class="tip__title">{{ tip.view.label }}</span>
+        @for (entry of tip.view.entries; track entry.key) {
+          <span class="tip__row">
+            <span class="tip__key" [style.background]="entry.color" aria-hidden="true"></span>
+            <span class="tip__value">{{ entry.valueText }}</span>
+            <span class="tip__label">{{ entry.label }}@if (percent()) { · {{ entry.shareText }}}</span>
+          </span>
+        }
+        <span class="tip__total">Total {{ tip.view.totalText }}</span>
+      </div>
+    }
+
+    @if (series().length >= 2) {
+      <ul class="legend" aria-label="Legend">
+        @for (item of series(); track item.key) {
+          <li class="legend__item">
+            <span class="legend__swatch" [style.background]="item.color" aria-hidden="true"></span>
+            {{ item.label }}
+          </li>
+        }
+      </ul>
+    }
+
+    <button
+      mat-button
+      type="button"
+      class="chart__toggle"
+      [attr.aria-expanded]="tableOpen()"
+      (click)="tableOpen.set(!tableOpen())"
+    >
+      <mat-icon aria-hidden="true">{{ tableOpen() ? 'expand_less' : 'table_chart' }}</mat-icon>
+      {{ tableOpen() ? 'Hide table' : 'View as table' }}
+    </button>
+
+    @if (tableOpen()) {
+      <div class="chart__table-scroll">
+        <table class="chart__table">
+          <caption class="visually-hidden">{{ caption() }}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{{ labelHeading() }}</th>
+              @for (item of series(); track item.key) {
+                <th scope="col" class="numeric">{{ item.label }}</th>
+              }
+              <th scope="col" class="numeric">{{ totalHeading() }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (view of views(); track view.label) {
+              <tr>
+                <th scope="row">{{ view.label }}</th>
+                @for (entry of view.entries; track entry.key) {
+                  <td class="numeric">{{ entry.valueText }}@if (percent()) { ({{ entry.shareText }})}</td>
+                }
+                <td class="numeric">{{ view.totalText }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</figure>

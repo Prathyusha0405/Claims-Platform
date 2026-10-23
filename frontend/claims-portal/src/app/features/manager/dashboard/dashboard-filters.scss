@@ -1,0 +1,35 @@
+:host {
+  display: block;
+}
+
+// One left-aligned row that wraps on a narrow screen. It sits above everything it scopes, never inside a chart card.
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.filters__field {
+  width: 200px;
+  max-width: 100%;
+}
+
+.filters__range {
+  width: 290px;
+  max-width: 100%;
+}
+
+.filters__error {
+  flex-basis: 100%;
+  margin: 0;
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-error);
+}
+
+@media (max-width: 599.98px) {
+  .filters__field,
+  .filters__range {
+    width: 100%;
+  }
+}
