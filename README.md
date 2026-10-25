@@ -247,7 +247,7 @@ Screenshots of the running app on the seed data (development build, 1440 × 900)
 
 ## Requirements coverage
 
-How the brief in [CLAUDE.md](CLAUDE.md) maps to the code. "Verified" means checked in the repository or by running it.
+How the brief in [CLAUDE.md](CLAUDE.md) maps to the code. "Done" marks a feature you can point to in the code. "Verified" marks the two rules in the brief that say what the code must *not* or must *always* do: there is no single place to point to, so they were checked by searching every service's source and `pom.xml`, and the notes say what that search found.
 
 | Requirement | Status | Where / notes |
 |---|---|---|
@@ -256,7 +256,7 @@ How the brief in [CLAUDE.md](CLAUDE.md) maps to the code. "Verified" means check
 | H2 + Flyway, never automatic schema generation | Done | `db/migration` in each service; `ddl-auto: validate` in all three |
 | No Lombok, PostgreSQL or MySQL | Verified | no Lombok in any `pom.xml` or source file; no PostgreSQL or MySQL dependency or configuration |
 | Docker and Kafka | Added later, as options | The brief ruled both out; they were added at the project owner's request and are off by default. Kafka: `kafka` publisher mode, [Events](#events-in-process-or-kafka). Docker: Dockerfiles and `docker-compose.yml`, [In Docker](#in-docker) (not yet built or run) |
-| Constructor injection, Java records for DTOs | Verified | no `@Autowired` in production code (only in test classes); all 36 `dto` types are records |
+| Constructor injection, Java records for DTOs | Verified | no `@Autowired` in production code (only in test classes); all 51 `dto` types are records |
 | OpenAPI / Swagger | Done | Swagger UI on each service ([below](#api)) |
 | Auth endpoints (register, login, `users/me`) | Done | [auth-service](#api) |
 | Claim endpoints (create, get by number, my-claims, search, additional-info) | Done | plus notification endpoints the UI needs |
@@ -599,3 +599,15 @@ More in [architecture.md](architecture.md#15-known-gaps-and-next-steps).
 | Startup error "required a bean of type PasswordEncoder", or `application.yml` / `db/migration` missing from `target/classes`, or "Failed to delete …\target\classes" | The repository is inside a OneDrive folder, which turns freshly built `target` folders into placeholders and breaks Maven and IDE builds. Delete the affected `target` folder (`Remove-Item -Recurse -Force <service>\target`) and rebuild. The lasting fix is to keep the repo outside OneDrive. |
 | First page load after `npm start` is slow | The dev server compiles on demand; later loads are fast |
 | Approve, Reject, Request information and Settle do nothing, and the browser console shows `NG0201: No provider found for RendererFactory2` or `NG0200: Circular dependency … ViewportRuler` | The dev server's dependency cache was rewritten underneath it. Starting a second `ng serve` from the same `frontend/claims-portal` folder does that, because both share `.angular/cache`; the page then loads two copies of Angular, and the dialogs, being lazy-loaded, are what fail. Stop `npm start`, delete `frontend/claims-portal/.angular/cache` if it still misbehaves, start it again and hard-refresh (Ctrl+Shift+R). For a second dev server, serve a copy of the folder (`node scripts/dev.mjs --frontend-dir <copy>`; the copy needs its own `node_modules`, because a junction to this one does not build) |
+
+## Future Improvements
+
+- PostgreSQL migration
+- Refresh Tokens
+- Email notifications
+- SMS notifications
+- Service Discovery
+- API Gateway
+- Distributed Tracing
+- Kubernetes deployment
+- External exchange-rate service
