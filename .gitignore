@@ -14,3 +14,6 @@ coverage/
 # Local run state written by scripts/dev.mjs (service logs, the generated dev-server proxy file)
 .run/
 *.log
+
+# Local overrides for docker-compose.yml (for example JWT_SECRET); never commit a real secret
+.env

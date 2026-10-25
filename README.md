@@ -17,7 +17,7 @@ A claims management platform assessment for **Chubb APAC**: three Spring Boot mi
 ![Frontend tests](https://img.shields.io/badge/Frontend_tests-384_passed-2EA44F?style=flat-square)
 ![Last verified](https://img.shields.io/badge/Last_verified-2026--10--25-blue?style=flat-square)
 
-[Quick start](#quick-start) · [Build & test](#tests) · [API](#api) · [Requirements](#requirements-coverage) · [Architecture](architecture.md) · [AI journal](AI_WORKING_JOURNAL.md)
+[Quick start](#quick-start) · [Build & test](#tests) · [Requirements](#requirements-coverage) · [Architecture](architecture.md) 
 
 </div>
 
@@ -97,7 +97,8 @@ flowchart LR
 |---|---|
 | Backend | Java (built on **JDK 27**, see the note below), Spring Boot 3.5, Spring Security with JWT (jjwt), Spring Data JPA, H2, Flyway, springdoc OpenAPI, Bean Validation, JUnit 5, Mockito, MockMvc |
 | Frontend | **Angular 22**, Angular Material 3, reactive forms, signals, route guards, Vitest |
-| Style | Constructor injection, Java records for DTOs, no Lombok, no Docker, no Kafka (events go through an abstraction) |
+| Style | Constructor injection, Java records for DTOs, no Lombok. Events go through an abstraction: handled in-process by default, through Kafka when switched on ([Events](#events-in-process-or-kafka)) |
+| Packaging | A Dockerfile for the services and one for the app, and a `docker-compose.yml` that runs them with a Kafka broker ([In Docker](#in-docker)). Optional: `node scripts/dev.mjs` still starts everything without Docker ([Quick start](#quick-start)) |
 
 
 ## Quick start
@@ -137,6 +138,45 @@ npm start          # ng serve, http://localhost:4200
 
 Open **http://localhost:4200**. The dev server proxies `/api/*` to the three services (`proxy.conf.json`), so there is
 nothing else to configure and no CORS to worry about.
+
+### In Docker
+
+With Docker (Compose v2) you need neither a JDK nor Node.js. From the repository root:
+
+```powershell
+docker compose up --build
+```
+
+Open **http://localhost:4200** and use the same [demo logins](#demo-logins). Five containers start: a single-node Kafka
+broker, the three services, and the Angular app behind nginx, which also forwards `/api/*` to the services as the dev-server
+proxy does. claim-service runs with `EVENTS_PUBLISHER=kafka`, so its claim events travel through Kafka
+([Events](#events-in-process-or-kafka)); `EVENTS_PUBLISHER=local docker compose up --build` keeps them in-process. Each container
+starts when what it depends on reports healthy, so after the images are built expect a minute or two before the app answers.
+Ports 4200, 8082, 8083 and 8084 must be free. `docker compose down` removes everything; the databases are in-memory H2, so
+every start has the seed data again. To replace the development JWT secret, set `JWT_SECRET` in the shell or in a `.env` file
+next to `docker-compose.yml`; all three services receive the same value.
+
+To watch the events go by, then file a claim in the app:
+
+```powershell
+docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic claim-events --from-beginning
+```
+
+**Not yet built or run.** The Dockerfiles and the compose file were written on a machine without Docker, so no image has been
+built and no container started. What was checked instead:
+
+* the compose file parses and agrees with the services: published ports, health probes, every environment variable it sets is
+  one the service reads, the same default JWT secret, and nginx routes that match `proxy.conf.json`;
+* the Dockerfile's build commands (`mvnw -pl <module> -am -DskipTests package`, then copying the jar) were run by hand for each
+  service and produced the jars;
+* those jars were started as separate processes in `kafka` mode, with the environment variables compose sets, against a real
+  broker (see [Events](#events-in-process-or-kafka));
+* the base images exist on Docker Hub: `eclipse-temurin:27-jdk` and `:27-jre`, `node:24-alpine`, `nginx:1.27-alpine` and
+  `apache/kafka:3.9.1`.
+
+Not checked: that `docker build` succeeds, the nginx configuration under nginx, the container health checks, the settings of
+the Kafka image, and the front-end build under Node 24 (it was built locally on Node 26). If something fails, the output of
+`docker compose up --build` and of `docker compose logs <service>` is what is needed to fix it.
 
 ### Demo logins
 
@@ -214,14 +254,15 @@ How the brief in [CLAUDE.md](CLAUDE.md) maps to the code. "Verified" means check
 | Three microservices (Auth, Claim, Assessment) and an Angular front end | Done | `backend/*-service`, `frontend/claims-portal` |
 | Spring Security, JWT bearer tokens, roles CLAIMANT / CLAIMS_STAFF / MANAGER | Done | `security` and `config/SecurityConfig` in each service; role matrix tested |
 | H2 + Flyway, never automatic schema generation | Done | `db/migration` in each service; `ddl-auto: validate` in all three |
-| No Lombok, PostgreSQL, MySQL, Docker or Kafka | Verified | no Lombok in any `pom.xml` or source file; no PostgreSQL, MySQL or Kafka dependency or configuration; no Dockerfile or compose file |
+| No Lombok, PostgreSQL or MySQL | Verified | no Lombok in any `pom.xml` or source file; no PostgreSQL or MySQL dependency or configuration |
+| Docker and Kafka | Added later, as options | The brief ruled both out; they were added at the project owner's request and are off by default. Kafka: `kafka` publisher mode, [Events](#events-in-process-or-kafka). Docker: Dockerfiles and `docker-compose.yml`, [In Docker](#in-docker) (not yet built or run) |
 | Constructor injection, Java records for DTOs | Verified | no `@Autowired` in production code (only in test classes); all 36 `dto` types are records |
 | OpenAPI / Swagger | Done | Swagger UI on each service ([below](#api)) |
 | Auth endpoints (register, login, `users/me`) | Done | [auth-service](#api) |
 | Claim endpoints (create, get by number, my-claims, search, additional-info) | Done | plus notification endpoints the UI needs |
 | Assessment endpoints (unassigned, assign, approve, reject, request-info, notes, dashboards) | Done | plus `POST .../settle`, `GET .../notes` and a fourth dashboard, `claims-over-time` |
 | Claim lifecycle, only valid transitions | Done | transition table in `ClaimStatus`; the whole path to `SETTLED` can be driven through the API and the app |
-| Event publisher pattern | Done | `ClaimEventPublisher` + `LocalClaimEventPublisher` (log, audit history, notifications); the brief's events plus `ADDITIONAL_INFO_RECEIVED` and `CLAIM_SETTLED` |
+| Event publisher pattern | Done | `ClaimEventPublisher` with `LocalClaimEventPublisher` (the default) and `KafkaClaimEventPublisher`, both ending in `ClaimEventHandler` (log, audit history, notifications); the brief's events plus `ADDITIONAL_INFO_RECEIVED` and `CLAIM_SETTLED`. The brief's "future `KafkaEventPublisher`, no service layer changes" is done: `ClaimService` was not touched |
 | Dashboard: totals, pending, approved, rejected, claims staff workload, liability exposure | Done, by market and in USD | exposure is `SUM(claimAmount) WHERE status != SETTLED` converted to USD at fixed indicative rates, in one class; every dashboard takes an optional `market`, `claimType`, `fromDate` and `toDate`, and `byMarket` shows each market in its own currency and in USD |
 | Manager visuals and filters | Done, beyond the brief | charts of claims over time, by market, by claim type and per claims staff member, each with a table view; filters for market, claim type and submission dates that every figure and chart follows ([API](#api), [architecture §9](architecture.md#9-dashboards)) |
 | Business context: six markets, each in its own currency | Done | a `market` and a `currency` on every claim; market filter on search, the work queue and the dashboards ([business context](#business-context)) |
@@ -292,6 +333,9 @@ Everything has a development default; override with environment variables.
 | `FLYWAY_TARGET` | `latest` | `1` = schema only, no demo data |
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | in-memory H2, `sa`, empty | Per-service database |
 | `CLAIM_SERVICE_URL` | `http://localhost:8082` | Where assessment-service finds claim-service |
+| `EVENTS_PUBLISHER` (claim) | `local` (`kafka` in `docker-compose.yml`) | `app.events.publisher`: `local` handles claim events in-process; `kafka` stages them in an outbox table and sends them through Kafka. See [Events](#events-in-process-or-kafka) |
+| `KAFKA_BOOTSTRAP_SERVERS` (claim) | `localhost:9092` | Where the broker is; read only in `kafka` mode (`kafka:9092` in Docker) |
+| `app.events.kafka.*` (claim) | topic `claim-events`, 3 partitions, replication factor 1, batch 100, relay delay 500 ms, send timeout 5 s, retry every 1 s up to 3 times | Topic and tuning for `kafka` mode, in claim-service's `application.yml`. A bad value falls back to its default |
 | `app.dashboard.reporting-currency`, `app.dashboard.rates` (assessment) | `USD`; per 1 USD: AUD 1.50, HKD 7.80, JPY 150, MYR 4.50, NZD 1.65, SGD 1.35 | The currency the dashboards report in, and the fixed, indicative rates used to convert each market's amounts into it. Not live rates. Keep them equal to the rates the seed amounts were converted at, or the documented USD figures drift |
 | `app.seed.demo-users` (auth) | `true` | Ensures the demo claims staff and manager accounts exist; turn off outside development |
 
@@ -305,10 +349,56 @@ Everything has a development default; override with environment variables.
 | **One-command start** | `node scripts/dev.mjs`, described under [Quick start](#quick-start) |
 | **CI** | `.github/workflows/ci.yml` runs every backend test (`mvnw verify`), every front-end test and a production build of the app on each push to `main` and each pull request. It has not been run yet: it needs a JDK 27 on the runner and was written from the commands in this README |
 
+## Events: in-process or Kafka
+
+Everything that happens to a claim (filed, taken, approved, rejected, information asked for or given, settled) is an event
+handed to `ClaimEventPublisher`. Each one is logged, written to the claim's history (the timeline a claimant sees) and turned
+into notifications. Two implementations do the handing, chosen with `EVENTS_PUBLISHER` on claim-service:
+
+| | `local` (the default) | `kafka` |
+|---|---|---|
+| What happens | The event is handled in-process, inside the claim's own database transaction | The event is saved to the `claim_event_outbox` table in that transaction; a relay sends it to the Kafka topic `claim-events`; a listener records it |
+| History and notifications | Written together with the claim change | Follow it by about a second (the relay polls every 500 ms; 1.2 s in the live check below). The claim itself is current at once |
+| Needs | Nothing | A Kafka broker |
+| Used by | `node scripts/dev.mjs`, an IDE run, `mvnw test` | `docker compose up` |
+
+To run from source in Kafka mode, have a broker on `localhost:9092` (or point `KAFKA_BOOTSTRAP_SERVERS` at one) and set the
+variable first: `$env:EVENTS_PUBLISHER='kafka'; node scripts/dev.mjs`. The script hands its environment to the services; that
+exact command line was not run, but the service itself was (below).
+
+What kafka mode guarantees:
+
+* **A claim change and its event are one fact.** They are saved in the same transaction, so a rollback discards both, and a
+  broker outage can neither block nor lose a claim change.
+* **Delivery is at least once, and a duplicate is harmless.** Each event has a stable id, stored in `claim_history.event_id`
+  (unique); the listener skips an id it has recorded.
+* **One claim's events stay in order** (they are keyed by claim id).
+* **Nothing is silently dropped.** A message that cannot be recorded is retried three times, a second apart, and then parked
+  on the topic `claim-events.DLT`. Nothing replays that topic: it is there to be looked at.
+
+If the broker is unavailable, claims can still be filed and decided; their events wait in `claim_event_outbox` and are sent,
+oldest first, when it answers.
+
+How it was checked:
+
+* **Tests**, which need no Docker or install because Kafka 3.9 runs inside the test JVM: unit tests for the publisher, the
+  relay (order, a rejected send, a timeout, an empty outbox), the listener, the handler and its duplicate rule, and the event id;
+  and `KafkaEventPublishingIntegrationTest` on a real broker: the whole lifecycle recorded from the topic in order, an event
+  delivered twice recorded once, an unreadable message and an unrecordable event parked on the dead-letter topic, a rolled-back
+  claim change leaving the outbox empty, and the publisher refusing to run outside a transaction. That is 38 tests in 9
+  classes; `DefaultEventPublisherTest` pins that with no configuration the local publisher is the only one and no Kafka bean exists.
+* **Live, on 2026-10-26**: the three packaged service jars as separate processes, with the environment variables
+  `docker-compose.yml` sets, and a real broker. A claim was driven through assessment-service from filing to settlement: the
+  claim was current at once and its four history rows arrived in order (the first 1.2 s after the request). The broker
+  process was then frozen, so it accepted and answered nothing: a claim could still be filed (201 in 20 ms) and taken, the claim
+  was current, its history stayed empty, and claim-service logged that it could not reach Kafka. When the broker was resumed
+  both history rows appeared in order, once each, and the listener had ignored one duplicate delivery on the way. A *killed*
+  broker was not run live (the relay's handling of a failed send is unit-tested), and the script is not in the repository.
+
 ## Tests
 
 ```powershell
-# Backend: 640 tests (auth 92, claim 326, assessment 222)
+# Backend: 669 tests (auth 92, claim 355, assessment 222)
 cd backend
 .\mvnw.cmd test
 
@@ -397,14 +487,18 @@ Production build: `npx ng build` from `frontend/claims-portal` (output in `dist/
 backend/
   pom.xml                     parent POM (modules: auth, claim, assessment)
   auth-service/               users, registration, login, JWT
-  claim-service/              claims, lifecycle, history, notifications, search, event publisher
+  claim-service/              claims, lifecycle, history, notifications, search, event publishers (local and Kafka)
   assessment-service/         claims staff actions, notes, dashboards; calls claim-service
     src/main/resources/db/migration/   V1 schema + V2 seed (one pair per service)
+  Dockerfile                  builds any one service: --build-arg SERVICE=<module>
+  .dockerignore
 frontend/claims-portal/       the Angular app (its own README covers the front end in detail)
   src/app/core/               guards, interceptors, shell layout, API clients, auth store
   src/app/shared/             reusable components, models, utilities
   src/app/features/           auth, claimant, staff, manager pages (lazy-loaded)
-  proxy.conf.json             /api/* → the three services
+  proxy.conf.json             /api/* → the three services (the dev server)
+  Dockerfile, nginx.conf      the production bundle served by nginx, which forwards /api/* the same way
+docker-compose.yml            Kafka, the three services and the app, as containers
 scripts/
   dev.mjs                     one command starts the services and the dev server
 .github/workflows/ci.yml      tests and a production build on every push and pull request
@@ -468,8 +562,15 @@ README.md · architecture.md · AI_WORKING_JOURNAL.md
   database that already holds data it would take new migrations that rename the columns and rewrite the stored role values.
 * The my-assigned-claims page has no component spec (it was checked by walking the running app); the work queue, the claim
   review page, the manager dashboard and the shared prompt dialog have one each.
+* **Kafka mode is a first version, and eventually consistent.** The audit trail and notifications follow a claim change by
+  about a second instead of arriving with it. It assumes one relay instance (two would not lose events but could send some
+  twice, which the listener ignores), nothing replays the dead-letter topic `claim-events.DLT`, and the broker in
+  `docker-compose.yml` is one plaintext node with replication factor 1 and no volume. Details and the failure behaviour are in
+  [Events](#events-in-process-or-kafka) and [architecture.md](architecture.md#7-event-publisher-pattern).
+* **The Docker files have never been built or run** (no Docker on the machine they were written on). See [In Docker](#in-docker)
+  for what was checked instead and what was not.
 * **CI is written but has not run.** `.github/workflows/ci.yml` follows the commands in this README and needs a Temurin JDK 27
-  on the runner; nothing here could execute it.
+  on the runner; nothing here could execute it. It does not build the Docker images either.
 * **The start script was run on Windows only.** `scripts/dev.mjs` was exercised on Windows 11 (a start, a refused start on a
   busy port, a service dying under it, the stop that follows). Its macOS and Linux branches (process groups, `sh mvnw`) have not
   been run, and its Ctrl+C handler was not exercised from a script.
@@ -486,6 +587,9 @@ More in [architecture.md](architecture.md#15-known-gaps-and-next-steps).
 | `node scripts/dev.mjs` says "Cannot start: port … is already in use" | Another copy, often one started from your IDE, holds the port. Stop it, or set `AUTH_PORT`, `CLAIM_PORT`, `ASSESSMENT_PORT` or `FRONTEND_PORT` to free ports |
 | assessment-service reports `DOWN` on `/actuator/health/readiness` | It cannot reach claim-service: check that claim-service is up and that `CLAIM_SERVICE_URL` points at it |
 | "Port 808x was already in use", or `ng serve` offers a different port | Something already holds the port, usually the same service started twice (an IDE run configuration and a terminal). Find it with `netstat -ano \| findstr :8084` then `tasklist /FI "PID eq <pid>"` (macOS/Linux: `lsof -i :8084`), and stop it |
+| `docker compose up` waits, then reports a service `unhealthy` | Its health check calls its own `/actuator/health/readiness`. See why with `docker compose logs <service>`. claim-service starts only when the broker is healthy, assessment-service only when claim-service is, and the front end when all three are; a first start can take a couple of minutes |
+| In `kafka` mode a claim is filed or decided, but its timeline and notifications stay empty | The events are waiting for Kafka or for the listener. They are not lost: they sit in the `claim_event_outbox` table and are sent when the broker answers (claim-service logs "Could not send claim events to Kafka" while it does not). One that cannot be recorded ends up on the `claim-events.DLT` topic |
+| claim-service logs an error about configuring topics when it starts in `kafka` mode | The broker was not reachable at start-up, when the service creates its topics. Start the broker first (compose does) and restart claim-service |
 | Sign-in fails or calls go to the wrong service after a port change | The dev-server proxy reads `proxy.conf.json` only when it starts: stop `npm start` and run it again |
 | Everything signs out after changing `JWT_SECRET` in one service | The secret must match in all three; restart them together |
 | Startup error "required a bean of type PasswordEncoder", or `application.yml` / `db/migration` missing from `target/classes`, or "Failed to delete …\target\classes" | The repository is inside a OneDrive folder, which turns freshly built `target` folders into placeholders and breaks Maven and IDE builds. Delete the affected `target` folder (`Remove-Item -Recurse -Force <service>\target`) and rebuild. The lasting fix is to keep the repo outside OneDrive. |

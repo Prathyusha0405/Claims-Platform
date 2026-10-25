@@ -47,12 +47,22 @@ public class ClaimHistory {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    /** Id of the event that produced this row, so a duplicate delivery can be recognised; null for seeded rows. */
+    @Column(name = "event_id", updatable = false, length = 36)
+    private String eventId;
+
     protected ClaimHistory() {
         // required by JPA
     }
 
     public ClaimHistory(Long claimId, ClaimEventType eventType, ClaimStatus fromStatus, ClaimStatus toStatus,
                         Long performedBy, String performedByRole, String details, Instant createdAt) {
+        this(claimId, eventType, fromStatus, toStatus, performedBy, performedByRole, details, createdAt, null);
+    }
+
+    public ClaimHistory(Long claimId, ClaimEventType eventType, ClaimStatus fromStatus, ClaimStatus toStatus,
+                        Long performedBy, String performedByRole, String details, Instant createdAt, String eventId) {
+        this.eventId = eventId;
         this.claimId = claimId;
         this.eventType = eventType;
         this.fromStatus = fromStatus;
@@ -97,5 +107,9 @@ public class ClaimHistory {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public String getEventId() {
+        return eventId;
     }
 }
