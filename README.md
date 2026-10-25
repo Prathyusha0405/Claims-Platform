@@ -13,9 +13,9 @@ A claims management platform assessment for **Chubb APAC**: three Spring Boot mi
 ![Flyway](https://img.shields.io/badge/Flyway-migrations-CC0200?style=flat-square&logo=flyway&logoColor=white)
 
 ![Local build](https://img.shields.io/badge/Local_Java_27_build-passed-2EA44F?style=flat-square)
-![Backend tests](https://img.shields.io/badge/Backend_tests-640_passed-2EA44F?style=flat-square)
+![Backend tests](https://img.shields.io/badge/Backend_tests-669_passed-2EA44F?style=flat-square)
 ![Frontend tests](https://img.shields.io/badge/Frontend_tests-384_passed-2EA44F?style=flat-square)
-![Last verified](https://img.shields.io/badge/Last_verified-2026--10--25-blue?style=flat-square)
+![Last verified](https://img.shields.io/badge/Last_verified-2026--10--26-blue?style=flat-square)
 
 [Quick start](#quick-start) · [Build & test](#tests) · [Requirements](#requirements-coverage) · [Architecture](architecture.md) 
 
@@ -267,7 +267,7 @@ How the brief in [CLAUDE.md](CLAUDE.md) maps to the code. "Verified" means check
 | Manager visuals and filters | Done, beyond the brief | charts of claims over time, by market, by claim type and per claims staff member, each with a table view; filters for market, claim type and submission dates that every figure and chart follows ([API](#api), [architecture §9](architecture.md#9-dashboards)) |
 | Business context: six markets, each in its own currency | Done | a `market` and a `currency` on every claim; market filter on search, the work queue and the dashboards ([business context](#business-context)) |
 | Search by claim number, policy number, status, date range, assigned staff member; paging and sorting | Done, plus market | `GET /api/claims/search`; the work queue also filters by market |
-| Tests: service, controller, security, dashboard (JUnit 5, Mockito, MockMvc) | Done | 640 backend tests, plus 384 front-end tests ([results](#tests)) |
+| Tests: service, controller, security, dashboard (JUnit 5, Mockito, MockMvc) | Done | 669 backend tests, plus 384 front-end tests ([results](#tests)) |
 | Operating it: health checks, request ids, one-command start, CI | Done, beyond the brief | [operations](#operations) |
 | Angular: Auth, Claimant, Staff, Manager, Shared, Core; the nine pages; reactive forms; route guards | Done | feature folders of standalone, lazy-loaded components rather than `NgModule`s |
 | README.md, architecture.md, AI_WORKING_JOURNAL.md | Done | [documentation map](#documentation-map) |
@@ -408,31 +408,35 @@ npx ng test --watch=false
 ```
 
 Backend: service and lifecycle rules, controllers (MockMvc), security (role matrix, forged/expired tokens), dashboards and
-liability maths, repositories and search, and integration tests on H2 + Flyway including the seed data. Frontend: guards,
+liability maths, repositories and search, integration tests on H2 + Flyway including the seed data, and the Kafka publisher
+end to end on a broker started inside the test JVM (no Docker needed). Frontend: guards,
 interceptors, stores, API clients, routes, the auth and claimant pages, the work queue, the claim review page, the prompt dialog, the manager dashboard with its
 filters and its three chart components, the notification bell and the utilities. Stop running services before
 `mvnw test` if they were started from the same folder, since both write to `target/`.
 
-### Latest results (2026-10-25, JDK 27)
+### Latest results (JDK 27)
 
-| Suite | Tests | Passed | Failed | Skipped |
-|---|---:|---:|---:|---:|
-| auth-service | 92 | 92 | 0 | 0 |
-| claim-service | 326 | 326 | 0 | 0 |
-| assessment-service | 222 | 222 | 0 | 0 |
-| **Backend total** | **640** | **640** | **0** | **0** |
-| Frontend (30 files) | 384 | 384 | 0 | 0 |
-| **All** | **1,024** | **1,024** | **0** | **0** |
+| Suite | Run on | Tests | Passed | Failed | Skipped |
+|---|---|---:|---:|---:|---:|
+| auth-service | 2026-10-26 | 92 | 92 | 0 | 0 |
+| claim-service | 2026-10-26 | 355 | 355 | 0 | 0 |
+| assessment-service | 2026-10-26 | 222 | 222 | 0 | 0 |
+| **Backend total** | | **669** | **669** | **0** | **0** |
+| Frontend (30 files) | 2026-10-25 | 384 | 384 | 0 | 0 |
+| **All** | | **1,053** | **1,053** | **0** | **0** |
 
-Both suites were run in full on 2026-10-25, after settling and the operations work were added: all three backend services in one
-Maven run in a copy of `backend/` (so running services were not disturbed), and the front end with `ng test` and a production
-build. The new behaviour was also run against the real services started by `scripts/dev.mjs` (seed data, spare ports): 39
+The backend was run in full on 2026-10-26, after the Kafka publisher was added (`mvnw verify`, all three services in one Maven
+run in a copy of `backend/`, so running services were not disturbed). The 29 tests more than on 2026-10-25 are all in
+claim-service: 38 tests for the event handler, id and Kafka classes, replacing 9 for the old local publisher. The front end was
+not re-run on 2026-10-26 because nothing in it changed (the Docker files were added beside it); its last full run, with a
+production build, was on 2026-10-25, after settling and the operations work were added. On that day the new behaviour was also run against
+the real services started by `scripts/dev.mjs` (seed data, spare ports): 39
 checks covering the health endpoints, a request id travelling from assessment-service into claim-service's log, and a claim taken
 from filing through approval to settlement, with the dashboard's liability exposure and settled total moving by exactly the
 claim's amount; and the settle screen was driven in a real browser (8 checks, including Cancel). That is not the whole history:
 on 2026-10-23, before the renames, the first full backend run had failures (claim-service 1, a seed assertion that still expected
 one statistics row per status, fixed since; assessment-service **1 out of 163**, the flaky test, which has failed under load
-three times now, on 2026-10-22 and twice on 2026-10-23). It passed in every full run on 2026-10-25. It has not been fixed.
+three times now, on 2026-10-22 and twice on 2026-10-23). It passed in every full run on 2026-10-25 and 2026-10-26. It has not been fixed.
 
 ### Coverage (measured 2026-10-22)
 
