@@ -9,6 +9,7 @@ import com.chubb.claims.assessment.dto.NoteResponse;
 import com.chubb.claims.assessment.dto.PageResponse;
 import com.chubb.claims.assessment.dto.RejectClaimRequest;
 import com.chubb.claims.assessment.dto.RequestInfoRequest;
+import com.chubb.claims.assessment.dto.SettleClaimRequest;
 import com.chubb.claims.assessment.security.AuthenticatedUser;
 import com.chubb.claims.assessment.service.AssessmentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -95,6 +96,23 @@ public class StaffClaimController {
                                       @RequestBody(required = false) @Valid ApproveClaimRequest request,
                                       @AuthenticationPrincipal AuthenticatedUser staffMember) {
         return assessmentService.approve(id, request, staffMember);
+    }
+
+    @PostMapping("/{id}/settle")
+    @Operation(summary = "Settle a claim",
+            description = "Only the staff member the claim is assigned to. APPROVED or REJECTED -> SETTLED, which closes the claim: "
+                    + "it stops counting towards liability exposure and the claimant is told. The comment is optional and is saved "
+                    + "in the claim history.")
+    @ApiResponse(responseCode = "403", description = "Claim is assigned to another staff member",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "No such claim",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "409", description = "Claim is not APPROVED or REJECTED",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    public AssessmentResponse settle(@PathVariable Long id,
+                                     @RequestBody(required = false) @Valid SettleClaimRequest request,
+                                     @AuthenticationPrincipal AuthenticatedUser staffMember) {
+        return assessmentService.settle(id, request, staffMember);
     }
 
     @PostMapping("/{id}/reject")

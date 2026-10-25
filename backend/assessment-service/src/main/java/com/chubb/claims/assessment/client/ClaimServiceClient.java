@@ -29,6 +29,9 @@ public interface ClaimServiceClient {
     /** UNDER_REVIEW -> REJECTED. */
     RemoteClaim reject(Long claimId, String reason);
 
+    /** APPROVED or REJECTED -> SETTLED. {@code comment} may be null. */
+    RemoteClaim settle(Long claimId, String comment);
+
     /** UNDER_REVIEW -> MORE_INFO_REQUIRED. */
     RemoteClaim requestInfo(Long claimId, String message);
 

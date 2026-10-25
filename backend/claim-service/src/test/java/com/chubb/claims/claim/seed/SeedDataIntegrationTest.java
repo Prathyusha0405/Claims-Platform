@@ -95,7 +95,7 @@ class SeedDataIntegrationTest {
     @Test
     void theDocumentedVolumesAreLoaded() {
         assertThat(count("SELECT COUNT(*) FROM claims")).isEqualTo(250);
-        assertThat(count("SELECT COUNT(*) FROM claim_history")).isEqualTo(500);
+        assertThat(count("SELECT COUNT(*) FROM claim_history")).isEqualTo(536);
         assertThat(count("SELECT COUNT(*) FROM notifications")).isEqualTo(200);
     }
 
@@ -263,18 +263,32 @@ class SeedDataIntegrationTest {
     void historyHasTheExpectedEventMix() {
         assertThat(grouped("SELECT event_type AS k, COUNT(*) AS n FROM claim_history GROUP BY event_type")).containsOnly(
                 Map.entry("CLAIM_CREATED", 250L), Map.entry("CLAIM_ASSIGNED", 150L), Map.entry("CLAIM_APPROVED", 64L),
-                Map.entry("CLAIM_REJECTED", 18L), Map.entry("ADDITIONAL_INFO_REQUESTED", 15L), Map.entry("ADDITIONAL_INFO_RECEIVED", 3L));
+                Map.entry("CLAIM_REJECTED", 18L), Map.entry("ADDITIONAL_INFO_REQUESTED", 15L), Map.entry("ADDITIONAL_INFO_RECEIVED", 3L),
+                Map.entry("CLAIM_SETTLED", 36L));
         assertThat(count("SELECT COUNT(*) FROM (SELECT claim_id FROM claim_history WHERE event_type = 'CLAIM_CREATED' GROUP BY claim_id HAVING COUNT(*) = 1)"))
                 .isEqualTo(250);
     }
 
     @Test
     void everyClaimsTimelineEndsWhereItsStatusSays() {
-        // The last event's target status is the claim's status; a SETTLED claim's history stops at its approval
-        // (settlement is not an event the platform records yet).
+        // The last event's target status is the claim's status, settled claims included.
         assertThat(count("SELECT COUNT(*) FROM claims c JOIN claim_history h ON h.id = (SELECT MAX(id) FROM claim_history WHERE claim_id = c.id) "
-                + "WHERE h.to_status <> CASE WHEN c.status = 'SETTLED' THEN 'APPROVED' ELSE c.status END")).isZero();
+                + "WHERE h.to_status <> c.status")).isZero();
         assertThat(count("SELECT COUNT(*) FROM claims WHERE id NOT IN (SELECT claim_id FROM claim_history)")).isZero();
+    }
+
+    @Test
+    void everySettledClaimHasOneSettlementEventThatFollowsItsDecision() {
+        assertThat(count("SELECT COUNT(*) FROM claims c WHERE c.status = 'SETTLED' AND "
+                + "(SELECT COUNT(*) FROM claim_history h WHERE h.claim_id = c.id AND h.event_type = 'CLAIM_SETTLED') = 1")).isEqualTo(36);
+        assertThat(count("SELECT COUNT(*) FROM claim_history WHERE event_type = 'CLAIM_SETTLED' AND to_status = 'SETTLED' "
+                + "AND from_status IN ('APPROVED', 'REJECTED') AND performed_by_role = 'CLAIMS_STAFF'")).isEqualTo(36);
+        // Settled by the staff member holding the claim, at the time the claim records as its last update.
+        assertThat(count("SELECT COUNT(*) FROM claim_history h JOIN claims c ON c.id = h.claim_id WHERE h.event_type = 'CLAIM_SETTLED' "
+                + "AND (h.performed_by <> c.assigned_staff_id OR h.created_at <> c.updated_at)")).isZero();
+        // The settlement follows the decision it closes: approvals and rejections of settled claims carry the same status.
+        assertThat(count("SELECT COUNT(*) FROM claim_history s JOIN claim_history d ON d.claim_id = s.claim_id AND d.id < s.id "
+                + "AND d.event_type IN ('CLAIM_APPROVED', 'CLAIM_REJECTED') WHERE s.event_type = 'CLAIM_SETTLED' AND d.to_status <> s.from_status")).isZero();
     }
 
     @Test
@@ -431,7 +445,7 @@ class SeedDataIntegrationTest {
         assertThat(claims).extracting(Claim::getMarket).containsOnly(Market.values());
         assertThat(claims).extracting(Claim::getCurrency).containsOnly(Currency.values());
         assertThat(claims).extracting(Claim::getStatus).containsOnly(ClaimStatus.values());
-        assertThat(history).hasSize(500);
+        assertThat(history).hasSize(536);
         assertThat(history).extracting(ClaimHistory::getEventType).containsOnly(ClaimEventType.values());
         assertThat(notifications).hasSize(200);
     }

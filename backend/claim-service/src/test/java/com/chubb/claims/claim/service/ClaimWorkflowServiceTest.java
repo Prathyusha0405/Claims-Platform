@@ -6,6 +6,7 @@ import com.chubb.claims.claim.dto.ClaimSummaryResponse;
 import com.chubb.claims.claim.dto.StaffStatusTotal;
 import com.chubb.claims.claim.dto.RejectClaimRequest;
 import com.chubb.claims.claim.dto.RequestInfoRequest;
+import com.chubb.claims.claim.dto.SettleClaimRequest;
 import com.chubb.claims.claim.dto.StatisticsCriteria;
 import com.chubb.claims.claim.dto.StatusTotal;
 import com.chubb.claims.claim.dto.TypeStatusTotal;
@@ -52,7 +53,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** The staff member actions assessment-service drives: assign, approve, reject, request-info, plus statistics. */
+/** The staff member actions assessment-service drives: assign, approve, reject, request-info, settle, plus statistics. */
 @ExtendWith(MockitoExtension.class)
 class ClaimWorkflowServiceTest {
 
@@ -241,6 +242,83 @@ class ClaimWorkflowServiceTest {
         when(claimRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> claimService.approve(99L, null, CLAIMS_STAFF)).isInstanceOf(ClaimNotFoundException.class);
+    }
+
+    // ---- settle -----------------------------------------------------------------------------------------------
+
+    @ParameterizedTest
+    @EnumSource(value = ClaimStatus.class, names = {"APPROVED", "REJECTED"})
+    void settleClosesADecidedClaimAndRecordsTheComment(ClaimStatus decided) {
+        Claim claim = assignedClaim(10L, 7L);
+        ReflectionTestUtils.setField(claim, "status", decided);
+        when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
+
+        ClaimSummaryResponse response = claimService.settle(10L, new SettleClaimRequest("  Paid in full  "), CLAIMS_STAFF);
+
+        assertThat(response.status()).isEqualTo(ClaimStatus.SETTLED);
+        assertThat(claim.getUpdatedAt()).isEqualTo(NOW);
+        verify(claimRepository).save(claim);
+        ClaimEvent event = publishedEvent();
+        assertThat(event.type()).isEqualTo(ClaimEventType.CLAIM_SETTLED);
+        assertThat(event.fromStatus()).isEqualTo(decided);
+        assertThat(event.toStatus()).isEqualTo(ClaimStatus.SETTLED);
+        assertThat(event.details()).isEqualTo("Paid in full");
+        assertThat(event.actorId()).isEqualTo(7L);
+        assertThat(event.actorRole()).isEqualTo("CLAIMS_STAFF");
+    }
+
+    @Test
+    void settleWithoutABodyOrWithABlankCommentUsesADefaultMessage() {
+        Claim claim = assignedClaim(10L, 7L);
+        ReflectionTestUtils.setField(claim, "status", ClaimStatus.APPROVED);
+        when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
+
+        claimService.settle(10L, null, CLAIMS_STAFF);
+        assertThat(publishedEvent().details()).isEqualTo("Claim settled");
+    }
+
+    @Test
+    void settleTreatsABlankCommentAsNone() {
+        Claim claim = assignedClaim(10L, 7L);
+        ReflectionTestUtils.setField(claim, "status", ClaimStatus.REJECTED);
+        when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
+
+        claimService.settle(10L, new SettleClaimRequest("   "), CLAIMS_STAFF);
+
+        assertThat(publishedEvent().details()).isEqualTo("Claim settled");
+    }
+
+    @Test
+    void onlyTheAssignedStaffMemberMaySettle() {
+        Claim claim = assignedClaim(10L, 7L);
+        ReflectionTestUtils.setField(claim, "status", ClaimStatus.APPROVED);
+        when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
+
+        assertThatThrownBy(() -> claimService.settle(10L, null, OTHER_STAFF)).isInstanceOf(NotAssignedStaffException.class);
+
+        assertThat(claim.getStatus()).isEqualTo(ClaimStatus.APPROVED);
+        verify(claimRepository, never()).save(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ClaimStatus.class, names = {"APPROVED", "REJECTED"}, mode = EnumSource.Mode.EXCLUDE)
+    void settleIsOnlyAllowedForAnApprovedOrRejectedClaim(ClaimStatus status) {
+        Claim claim = assignedClaim(10L, 7L);
+        ReflectionTestUtils.setField(claim, "status", status);
+        when(claimRepository.findById(10L)).thenReturn(Optional.of(claim));
+
+        assertThatThrownBy(() -> claimService.settle(10L, null, CLAIMS_STAFF)).isInstanceOf(InvalidStatusTransitionException.class);
+
+        assertThat(claim.getStatus()).isEqualTo(status);
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void settleOfAnUnknownClaimIsNotFound() {
+        when(claimRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> claimService.settle(99L, null, CLAIMS_STAFF)).isInstanceOf(ClaimNotFoundException.class);
     }
 
     // ---- read side --------------------------------------------------------------------------------------------

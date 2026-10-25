@@ -10,6 +10,7 @@ import com.chubb.claims.claim.dto.CreateClaimRequest;
 import com.chubb.claims.claim.dto.PageResponse;
 import com.chubb.claims.claim.dto.RejectClaimRequest;
 import com.chubb.claims.claim.dto.RequestInfoRequest;
+import com.chubb.claims.claim.dto.SettleClaimRequest;
 import com.chubb.claims.claim.dto.StatisticsCriteria;
 import com.chubb.claims.claim.entity.Claim;
 import com.chubb.claims.claim.entity.ClaimEventType;
@@ -189,6 +190,14 @@ public class ClaimService {
     @Transactional
     public ClaimSummaryResponse reject(Long claimId, RejectClaimRequest request, AuthenticatedUser staffMember) {
         return decide(claimId, staffMember, ClaimStatus.REJECTED, ClaimEventType.CLAIM_REJECTED, request.reason().trim());
+    }
+
+    /** APPROVED or REJECTED -> SETTLED, by the assigned staff member. A settled claim no longer counts as liability exposure. */
+    @Transactional
+    public ClaimSummaryResponse settle(Long claimId, SettleClaimRequest request, AuthenticatedUser staffMember) {
+        String comment = request == null ? null : trimToNull(request.comment());
+        return decide(claimId, staffMember, ClaimStatus.SETTLED, ClaimEventType.CLAIM_SETTLED,
+                comment != null ? comment : "Claim settled");
     }
 
     /** UNDER_REVIEW -> MORE_INFO_REQUIRED, by the assigned staff member. */

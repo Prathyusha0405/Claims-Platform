@@ -58,6 +58,7 @@ final class ClaimNotificationFactory {
                     "Additional information is required for your claim " + claim + ". Please respond with the requested details.";
             case ADDITIONAL_INFO_RECEIVED ->
                     "We have received the additional information for your claim " + claim + ". It is back under review.";
+            case CLAIM_SETTLED -> "Your claim " + claim + " has been settled and is now closed.";
         };
     }
 }

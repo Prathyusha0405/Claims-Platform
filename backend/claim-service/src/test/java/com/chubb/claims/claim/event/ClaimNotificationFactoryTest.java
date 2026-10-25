@@ -38,6 +38,7 @@ class ClaimNotificationFactoryTest {
         assertThat(messageFor(ClaimEventType.CLAIM_REJECTED)).contains("rejected");
         assertThat(messageFor(ClaimEventType.ADDITIONAL_INFO_REQUESTED)).contains("Additional information is required");
         assertThat(messageFor(ClaimEventType.ADDITIONAL_INFO_RECEIVED)).contains("received");
+        assertThat(messageFor(ClaimEventType.CLAIM_SETTLED)).contains("settled").contains("closed");
     }
 
     @Test

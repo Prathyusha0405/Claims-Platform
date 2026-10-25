@@ -89,7 +89,7 @@ CREATE TABLE claim_history (
     CONSTRAINT fk_claim_history_claim FOREIGN KEY (claim_id) REFERENCES claims (id),
     CONSTRAINT ck_claim_history_event_type CHECK (event_type IN
         ('CLAIM_CREATED', 'CLAIM_ASSIGNED', 'CLAIM_APPROVED', 'CLAIM_REJECTED',
-         'ADDITIONAL_INFO_REQUESTED', 'ADDITIONAL_INFO_RECEIVED')),
+         'ADDITIONAL_INFO_REQUESTED', 'ADDITIONAL_INFO_RECEIVED', 'CLAIM_SETTLED')),
     CONSTRAINT ck_claim_history_from_status CHECK (from_status IS NULL OR from_status IN
         ('SUBMITTED', 'UNDER_REVIEW', 'MORE_INFO_REQUIRED', 'APPROVED', 'REJECTED', 'SETTLED')),
     CONSTRAINT ck_claim_history_to_status CHECK (to_status IS NULL OR to_status IN
@@ -115,7 +115,7 @@ CREATE TABLE notifications (
     CONSTRAINT fk_notifications_claim FOREIGN KEY (claim_id) REFERENCES claims (id),
     CONSTRAINT ck_notifications_event_type CHECK (event_type IN
         ('CLAIM_CREATED', 'CLAIM_ASSIGNED', 'CLAIM_APPROVED', 'CLAIM_REJECTED',
-         'ADDITIONAL_INFO_REQUESTED', 'ADDITIONAL_INFO_RECEIVED'))
+         'ADDITIONAL_INFO_REQUESTED', 'ADDITIONAL_INFO_RECEIVED', 'CLAIM_SETTLED'))
 );
 
 CREATE INDEX idx_notifications_recipient ON notifications (recipient_id, is_read, created_at);  -- inbox, unread badge

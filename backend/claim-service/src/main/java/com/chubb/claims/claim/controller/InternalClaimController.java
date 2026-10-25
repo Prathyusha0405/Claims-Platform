@@ -7,6 +7,7 @@ import com.chubb.claims.claim.dto.ClaimTrendResponse;
 import com.chubb.claims.claim.dto.ErrorResponse;
 import com.chubb.claims.claim.dto.RejectClaimRequest;
 import com.chubb.claims.claim.dto.RequestInfoRequest;
+import com.chubb.claims.claim.dto.SettleClaimRequest;
 import com.chubb.claims.claim.dto.StatisticsCriteria;
 import com.chubb.claims.claim.dto.TrendCriteria;
 import com.chubb.claims.claim.security.AuthenticatedUser;
@@ -112,6 +113,20 @@ public class InternalClaimController {
     public ClaimSummaryResponse reject(@PathVariable Long id, @Valid @RequestBody RejectClaimRequest request,
                                        @AuthenticationPrincipal AuthenticatedUser staffMember) {
         return claimService.reject(id, request, staffMember);
+    }
+
+    @PostMapping("/{id}/settle")
+    @Operation(summary = "Settle a claim",
+            description = "CLAIMS_STAFF assigned to the claim. APPROVED or REJECTED -> SETTLED and publishes CLAIM_SETTLED. "
+                    + "The optional comment is saved in the claim history.")
+    @ApiResponse(responseCode = "403", description = "Claim is assigned to another staff member",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "409", description = "Claim is not APPROVED or REJECTED",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    public ClaimSummaryResponse settle(@PathVariable Long id,
+                                       @RequestBody(required = false) @Valid SettleClaimRequest request,
+                                       @AuthenticationPrincipal AuthenticatedUser staffMember) {
+        return claimService.settle(id, request, staffMember);
     }
 
     @PostMapping("/{id}/request-info")

@@ -28,7 +28,7 @@ class AssessmentSecurityIntegrationTest extends AbstractStubbedClaimServiceTest 
         List<MockHttpServletRequestBuilder> requests = new java.util.ArrayList<>();
         requests.add(get("/api/staff/claims/unassigned"));
         requests.add(get("/api/staff/claims/10/notes"));
-        for (String action : List.of("assign", "approve", "reject", "request-info", "notes")) {
+        for (String action : List.of("assign", "approve", "reject", "request-info", "settle", "notes")) {
             requests.add(post("/api/staff/claims/10/" + action).contentType(MediaType.APPLICATION_JSON)
                     .content("{\"reason\":\"x\",\"message\":\"x\",\"content\":\"x\"}"));
         }
@@ -120,7 +120,7 @@ class AssessmentSecurityIntegrationTest extends AbstractStubbedClaimServiceTest 
     }
 
     @Test
-    void openApiDocumentDescribesAllTenEndpointsAndBearerAuth() throws Exception {
+    void openApiDocumentDescribesEveryEndpointAndBearerAuth() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.info.title").value("Assessment Service API"))
@@ -129,6 +129,8 @@ class AssessmentSecurityIntegrationTest extends AbstractStubbedClaimServiceTest 
                 .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/approve'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/reject'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/request-info'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/settle'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/settle'].post.responses['409']").exists())
                 .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/notes'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/notes'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/staff/claims/{id}/notes'].get.responses['404']").exists())

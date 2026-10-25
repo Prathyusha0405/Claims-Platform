@@ -137,6 +137,80 @@ class ClaimLifecycleIntegrationTest {
     }
 
     @Test
+    void anApprovedClaimIsSettledByItsStaffMemberAndTheClaimantIsTold() throws Exception {
+        long jane = randomUserId();
+        long staffMember = randomUserId();
+        long otherStaff = randomUserId();
+        String claimantToken = token(jane, Role.CLAIMANT);
+        JsonNode created = json(mockMvc.perform(post("/api/claims").header(HttpHeaders.AUTHORIZATION, claimantToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"policyNumber":"POL-SET-1","claimType":"AUTO","market":"AU","incidentDate":"2026-10-15",
+                         "description":"Hail damage","claimAmount":2400.00}""")));
+        long claimId = created.get("id").asLong();
+        String claimNumber = created.get("claimNumber").asText();
+
+        // Nothing can be settled before it is decided.
+        action(staffMember, claimId, "assign", null).andExpect(status().isOk());
+        action(staffMember, claimId, "settle", "{}").andExpect(status().isConflict());
+
+        action(staffMember, claimId, "approve", "{\"comment\":\"Estimate accepted\"}").andExpect(status().isOk());
+
+        // Only the staff member who holds the claim can settle it.
+        action(otherStaff, claimId, "settle", "{}").andExpect(status().isForbidden());
+        action(staffMember, claimId, "settle", "{\"comment\":\"Paid by bank transfer\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SETTLED"))
+                .andExpect(jsonPath("$.assignedStaffId").value(staffMember));
+
+        // A settled claim is closed: nothing moves it again, settling included.
+        action(staffMember, claimId, "settle", "{}").andExpect(status().isConflict());
+        action(staffMember, claimId, "reject", "{\"reason\":\"too late\"}").andExpect(status().isConflict());
+
+        mockMvc.perform(get("/api/claims/" + claimNumber).header(HttpHeaders.AUTHORIZATION, claimantToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SETTLED"))
+                .andExpect(jsonPath("$.history[*].eventType").value(org.hamcrest.Matchers.contains(
+                        "CLAIM_CREATED", "CLAIM_ASSIGNED", "CLAIM_APPROVED", "CLAIM_SETTLED")))
+                .andExpect(jsonPath("$.history[3].details").value("Paid by bank transfer"))
+                .andExpect(jsonPath("$.history[3].fromStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.history[3].toStatus").value("SETTLED"))
+                .andExpect(jsonPath("$.history[3].performedBy").value(staffMember))
+                .andExpect(jsonPath("$.history[3].performedByRole").value("CLAIMS_STAFF"));
+
+        assertThat(notificationRepository.findByRecipientId(jane, PageRequest.of(0, 20)).getContent())
+                .extracting(notification -> notification.getEventType())
+                .containsExactlyInAnyOrder(ClaimEventType.CLAIM_CREATED, ClaimEventType.CLAIM_ASSIGNED,
+                        ClaimEventType.CLAIM_APPROVED, ClaimEventType.CLAIM_SETTLED);
+        mockMvc.perform(get("/api/internal/claims/statistics").header(HttpHeaders.AUTHORIZATION, token(staffMember, Role.MANAGER)))
+                .andExpect(jsonPath("$.byStatus[*].status").value(hasItem("SETTLED")));
+    }
+
+    @Test
+    void aRejectedClaimCanBeSettledToo() throws Exception {
+        long jane = randomUserId();
+        long staffMember = randomUserId();
+        String claimantToken = token(jane, Role.CLAIMANT);
+        JsonNode created = json(mockMvc.perform(post("/api/claims").header(HttpHeaders.AUTHORIZATION, claimantToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"policyNumber":"POL-SET-2","claimType":"HOME","market":"NZ","incidentDate":"2026-10-15",
+                         "description":"Fence","claimAmount":300.00}""")));
+        long claimId = created.get("id").asLong();
+
+        action(staffMember, claimId, "assign", null).andExpect(status().isOk());
+        action(staffMember, claimId, "reject", "{\"reason\":\"Below the policy excess\"}").andExpect(status().isOk());
+        action(staffMember, claimId, "settle", null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SETTLED"));
+
+        mockMvc.perform(get("/api/claims/" + created.get("claimNumber").asText()).header(HttpHeaders.AUTHORIZATION, claimantToken))
+                .andExpect(jsonPath("$.history[3].eventType").value("CLAIM_SETTLED"))
+                .andExpect(jsonPath("$.history[3].fromStatus").value("REJECTED"))
+                .andExpect(jsonPath("$.history[3].details").value("Claim settled"));
+    }
+
+    @Test
     void aRejectedClaimRecordsTheReasonForTheClaimant() throws Exception {
         long jane = randomUserId();
         long staffMember = randomUserId();

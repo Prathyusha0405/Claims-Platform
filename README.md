@@ -99,10 +99,6 @@ flowchart LR
 | Frontend | **Angular 22**, Angular Material 3, reactive forms, signals, route guards, Vitest |
 | Style | Constructor injection, Java records for DTOs, no Lombok, no Docker, no Kafka (events go through an abstraction) |
 
-> **Differences from the brief.** `CLAUDE.md` asks for Java 21, Angular 19 and auth-service on port 8081. The backend is
-> built and tested on JDK 27 (`java.version` in `backend/pom.xml`; not tried on 21), the front end was scaffolded with
-> Angular 22, and auth-service was moved to **8084** because it and the front end were both found using 8081 on the
-> author's machine.
 
 ## Quick start
 
@@ -313,7 +309,7 @@ Both suites were run in full on 2026-10-23, after the manager visuals and filter
 single `mvnw test` run (in a copy of `backend/`, so that running services were not disturbed), the flaky test described under
 *Known limitations* included, and the front end with `ng test` and a production build. The new dashboard behaviour was also run
 against the real services (seed data, spare ports), where every figure was cross-checked against claim search or against another
-dashboard; the numbers are in [journal section 27](AI_WORKING_JOURNAL.md). That is not the whole history: earlier the same day,
+dashboard; the numbers are in [journal entry 28](AI_WORKING_JOURNAL.md#28--2026-10-23-manager-dashboard-visuals-and-filters). That is not the whole history: earlier the same day,
 before the renames, the first full backend run had failures. claim-service had 1, a seed
 assertion that still expected one statistics row per status (fixed since), and assessment-service had **1 out of 163**,
 the flaky test, which has failed under load three times now (on 2026-10-22 and twice on 2026-10-23) and passes on re-run.
@@ -393,9 +389,8 @@ README.md · architecture.md · AI_WORKING_JOURNAL.md
 |---|---|
 | [README.md](README.md) (this file) | Running the platform, demo logins, what is covered, test results, limitations |
 | [architecture.md](architecture.md) | Design: service boundaries, request flow, lifecycle, security, event pattern, data model, dashboards, front end, decisions and trade-offs, assumptions, known gaps |
-| [docs/api-guide.md](docs/api-guide.md) | Calling the API: a full claim journey with `curl`, real responses, every error shape |
 | [frontend/claims-portal/README.md](frontend/claims-portal/README.md) | The Angular app: scripts, routes, source layout, how it works |
-| [AI_WORKING_JOURNAL.md](AI_WORKING_JOURNAL.md) | How AI assistance was used: prompts, what was accepted and rejected, manual changes, verification |
+| [AI_WORKING_JOURNAL.md](AI_WORKING_JOURNAL.md) | How AI assistance was used: a dated, running record, one numbered entry per request. Each entry gives the task or prompt, what the AI recommended or did, what was accepted, what the AI challenged or corrected, manual human changes, how it was validated (and what was not) and the result |
 | [CLAUDE.md](CLAUDE.md) | The original brief |
 
 ## Known limitations

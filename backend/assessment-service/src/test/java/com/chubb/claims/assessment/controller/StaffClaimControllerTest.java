@@ -4,6 +4,7 @@ import com.chubb.claims.assessment.client.ClaimStatus;
 import com.chubb.claims.assessment.config.SecurityConfig;
 import com.chubb.claims.assessment.dto.AddNoteRequest;
 import com.chubb.claims.assessment.dto.ApproveClaimRequest;
+import com.chubb.claims.assessment.dto.SettleClaimRequest;
 import com.chubb.claims.assessment.dto.AssessmentResponse;
 import com.chubb.claims.assessment.dto.ClaimSummaryResponse;
 import com.chubb.claims.assessment.dto.NoteResponse;
@@ -181,6 +182,34 @@ class StaffClaimControllerTest {
         verifyNoInteractions(assessmentService);
     }
 
+    // ---- settle -----------------------------------------------------------------------------------------------
+
+    @Test
+    void settleAcceptsACommentOrNoBody() throws Exception {
+        when(assessmentService.settle(any(), any(), any())).thenReturn(assessment(ClaimStatus.SETTLED, AssessmentDecision.APPROVED));
+
+        mockMvc.perform(post("/api/staff/claims/10/settle").with(as(CLAIMS_STAFF)).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"comment":"Paid in full"}"""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.claimStatus").value("SETTLED"))
+                .andExpect(jsonPath("$.decision").value("APPROVED"));
+        verify(assessmentService).settle(10L, new SettleClaimRequest("Paid in full"), CLAIMS_STAFF);
+
+        mockMvc.perform(post("/api/staff/claims/11/settle").with(as(CLAIMS_STAFF))).andExpect(status().isOk());
+        verify(assessmentService).settle(eq(11L), isNull(), eq(CLAIMS_STAFF));
+    }
+
+    @Test
+    void settleRejectsAnOverlongComment() throws Exception {
+        mockMvc.perform(post("/api/staff/claims/10/settle").with(as(CLAIMS_STAFF)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"comment\":\"" + "x".repeat(2001) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.comment").exists());
+
+        verifyNoInteractions(assessmentService);
+    }
+
     // ---- reject -----------------------------------------------------------------------------------------------
 
     @Test
@@ -340,7 +369,7 @@ class StaffClaimControllerTest {
             mockMvc.perform(get("/api/staff/claims/10/notes").with(as(caller)))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.status").value(403));
-            for (String action : List.of("assign", "approve", "reject", "request-info", "notes")) {
+            for (String action : List.of("assign", "approve", "reject", "request-info", "settle", "notes")) {
                 mockMvc.perform(post("/api/staff/claims/10/" + action).with(as(caller)).contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\":\"x\",\"message\":\"x\",\"content\":\"x\"}"))
                         .andExpect(status().isForbidden())

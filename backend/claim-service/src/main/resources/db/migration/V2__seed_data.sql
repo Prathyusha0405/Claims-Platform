@@ -2,7 +2,7 @@
 -- CHUBB APAC CLAIMS PLATFORM  |  CLAIM SERVICE  |  V2__seed_data.sql   (DEMO DATA)
 -- ---------------------------------------------------------------------------------------------------------------------
 -- 250 motor (AUTO) and property (HOME) claims across Australia, Singapore, Hong Kong, Japan, Malaysia, New Zealand,
--- with their 500 history records and 200 notifications. Data is anchored at 2026-10-22; all timestamps are UTC.
+-- with their 536 history records and 200 notifications. Data is anchored at 2026-10-22; all timestamps are UTC.
 --
 -- THE STORY: a regional intake surge (typhoon and storm season) has left 100 claims waiting in the work queue; five
 -- claims staff are working the rest, Sydney heaviest because it covers Australia and New Zealand; 36 older claims are settled.
@@ -52,8 +52,8 @@
 --   * claimant_id / assigned_staff_id are auth-service user ids (claimants 7..26, claims staff 2..6).
 --   * A claim is unassigned exactly while SUBMITTED. Every other claim has an assigned staff member and exactly one row in
 --     assessment-service's claim_assessments (150 of them, same claim ids).
---   * Settlement is not an event the platform records yet (no settle endpoint), so a SETTLED claim's history ends at
---     its approval; claims.updated_at carries the settlement time.
+--   * A SETTLED claim's history ends with a CLAIM_SETTLED event (36 rows, ids 501 to 536) by the staff member who holds the
+--     claim, stamped with claims.updated_at, the settlement time. They are derived from the claims and their decisions below.
 --   * To start with an EMPTY platform instead, skip this file: set FLYWAY_TARGET=1 (spring.flyway.target).
 -- =====================================================================================================================
 
@@ -1094,9 +1094,26 @@ INSERT INTO notifications (id, recipient_id, claim_id, event_type, message, is_r
     (200, 10, 250, 'CLAIM_CREATED', 'Your claim CLM-2026-000250 has been submitted successfully.', FALSE, '2026-10-21 17:54:42+00:00');  -- CLM-2026-000250 CLAIM_CREATED -> user 10 (unread)
 
 -- ---------------------------------------------------------------------------------------------------------------------
+-- claim_history (36 more): CLAIM_SETTLED for every SETTLED claim, closing the timeline after its approval or rejection.
+-- The staff member is the one who holds the claim; the time is claims.updated_at. Ids follow the order of settlement.
+-- ---------------------------------------------------------------------------------------------------------------------
+INSERT INTO claim_history (id, claim_id, event_type, from_status, to_status, performed_by, performed_by_role, details, created_at)
+SELECT 500 + ROW_NUMBER() OVER (ORDER BY c.updated_at, c.id),
+       c.id,
+       'CLAIM_SETTLED',
+       (SELECT d.to_status FROM claim_history d WHERE d.id = (SELECT MAX(l.id) FROM claim_history l WHERE l.claim_id = c.id)),
+       'SETTLED',
+       c.assigned_staff_id,
+       'CLAIMS_STAFF',
+       'Claim settled',
+       c.updated_at
+FROM claims c
+WHERE c.status = 'SETTLED';
+
+-- ---------------------------------------------------------------------------------------------------------------------
 -- Ids were inserted explicitly, so move the counters past them: the next claim is id 251 / CLM-2026-000251.
 -- ---------------------------------------------------------------------------------------------------------------------
 ALTER TABLE claims ALTER COLUMN id RESTART WITH 251;
-ALTER TABLE claim_history ALTER COLUMN id RESTART WITH 501;
+ALTER TABLE claim_history ALTER COLUMN id RESTART WITH 537;
 ALTER TABLE notifications ALTER COLUMN id RESTART WITH 201;
 ALTER SEQUENCE claim_number_seq RESTART WITH 251;

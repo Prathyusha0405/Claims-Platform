@@ -12,6 +12,7 @@ import com.chubb.claims.assessment.dto.NoteResponse;
 import com.chubb.claims.assessment.dto.PageResponse;
 import com.chubb.claims.assessment.dto.RejectClaimRequest;
 import com.chubb.claims.assessment.dto.RequestInfoRequest;
+import com.chubb.claims.assessment.dto.SettleClaimRequest;
 import com.chubb.claims.assessment.entity.AssessmentDecision;
 import com.chubb.claims.assessment.entity.ClaimAssessment;
 import com.chubb.claims.assessment.entity.ClaimNote;
@@ -222,6 +223,65 @@ class AssessmentServiceTest {
         assertThatThrownBy(() -> assessmentService.approve(10L, null, CLAIMS_STAFF))
                 .isInstanceOf(ClaimAccessDeniedException.class)
                 .hasMessage("This claim is not assigned to you");
+
+        verifyNoInteractions(assessmentRepository, noteRepository);
+    }
+
+    // ---- settle -----------------------------------------------------------------------------------------------
+
+    @Test
+    void settleForwardsTheTrimmedCommentAndKeepsTheRecordedDecision() {
+        when(claimServiceClient.settle(10L, "Paid by bank transfer")).thenReturn(claim(10L, ClaimStatus.SETTLED, 7L));
+        ClaimAssessment existing = new ClaimAssessment(10L, "CLM-2026-000010", 7L, "Demo Claims Staff", NOW.minusSeconds(600));
+        existing.recordDecision(AssessmentDecision.APPROVED, "Damage confirmed", NOW.minusSeconds(300));
+        when(assessmentRepository.findByClaimId(10L)).thenReturn(Optional.of(existing));
+        savedAssessmentsAreReturned();
+
+        AssessmentResponse response = assessmentService.settle(10L, new SettleClaimRequest("  Paid by bank transfer  "), CLAIMS_STAFF);
+
+        assertThat(response.claimStatus()).isEqualTo(ClaimStatus.SETTLED);
+        assertThat(response.decision()).isEqualTo(AssessmentDecision.APPROVED);
+        assertThat(response.decisionReason()).isEqualTo("Damage confirmed");
+        assertThat(existing.getDecidedAt()).isEqualTo(NOW.minusSeconds(300));
+        verifyNoInteractions(noteRepository);
+    }
+
+    @Test
+    void settleWithoutABodyOrWithABlankCommentSendsNoComment() {
+        when(claimServiceClient.settle(10L, null)).thenReturn(claim(10L, ClaimStatus.SETTLED, 7L));
+        when(assessmentRepository.findByClaimId(10L)).thenReturn(Optional.of(
+                new ClaimAssessment(10L, "CLM-2026-000010", 7L, "Demo Claims Staff", NOW.minusSeconds(600))));
+        savedAssessmentsAreReturned();
+
+        assessmentService.settle(10L, null, CLAIMS_STAFF);
+        assessmentService.settle(10L, new SettleClaimRequest("   "), CLAIMS_STAFF);
+
+        verify(claimServiceClient, org.mockito.Mockito.times(2)).settle(10L, null);
+    }
+
+    @Test
+    void settleCreatesTheAssessmentWhenAnEarlierLocalWriteWasLost() {
+        when(claimServiceClient.settle(10L, null)).thenReturn(claim(10L, ClaimStatus.SETTLED, 7L));
+        when(assessmentRepository.findByClaimId(10L)).thenReturn(Optional.empty());
+        savedAssessmentsAreReturned();
+
+        AssessmentResponse response = assessmentService.settle(10L, null, CLAIMS_STAFF);
+
+        ArgumentCaptor<ClaimAssessment> saved = ArgumentCaptor.forClass(ClaimAssessment.class);
+        verify(assessmentRepository).save(saved.capture());
+        assertThat(saved.getValue().getStaffId()).isEqualTo(7L);
+        assertThat(saved.getValue().getDecision()).isNull();
+        assertThat(response.claimStatus()).isEqualTo(ClaimStatus.SETTLED);
+    }
+
+    @Test
+    void settleStoresNothingWhenClaimServiceRefuses() {
+        when(claimServiceClient.settle(10L, null))
+                .thenThrow(new ClaimAccessDeniedException("This claim is not assigned to you"))
+                .thenThrow(new ClaimConflictException("Cannot move a claim from UNDER_REVIEW to SETTLED"));
+
+        assertThatThrownBy(() -> assessmentService.settle(10L, null, CLAIMS_STAFF)).isInstanceOf(ClaimAccessDeniedException.class);
+        assertThatThrownBy(() -> assessmentService.settle(10L, null, CLAIMS_STAFF)).isInstanceOf(ClaimConflictException.class);
 
         verifyNoInteractions(assessmentRepository, noteRepository);
     }

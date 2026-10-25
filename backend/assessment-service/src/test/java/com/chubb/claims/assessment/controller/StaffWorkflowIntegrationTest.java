@@ -105,6 +105,51 @@ class StaffWorkflowIntegrationTest extends AbstractStubbedClaimServiceTest {
     }
 
     @Test
+    void settlingForwardsTheCommentKeepsTheDecisionAndStoresNoNote() throws Exception {
+        long staffMember = randomId();
+        long claim = randomId();
+        CLAIM_SERVICE.on("POST", "/api/internal/claims/" + claim + "/assign", 200, ClaimJson.claim(claim, "UNDER_REVIEW", staffMember));
+        CLAIM_SERVICE.on("POST", "/api/internal/claims/" + claim + "/approve", 200, ClaimJson.claim(claim, "APPROVED", staffMember));
+        action(staffMember, claim, "assign", null).andExpect(status().isOk());
+        action(staffMember, claim, "approve", "{\"comment\":\"Estimate matches the damage\"}").andExpect(status().isOk());
+
+        CLAIM_SERVICE.on("POST", "/api/internal/claims/" + claim + "/settle", 200, ClaimJson.claim(claim, "SETTLED", staffMember));
+        action(staffMember, claim, "settle", "{\"comment\":\"  Paid by bank transfer  \"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.claimStatus").value("SETTLED"))
+                .andExpect(jsonPath("$.decision").value("APPROVED"))
+                .andExpect(jsonPath("$.decisionReason").value("Estimate matches the damage"));
+        assertThat(CLAIM_SERVICE.lastRequest().body()).isEqualTo("{\"comment\":\"Paid by bank transfer\"}");
+
+        // The settlement comment lives in claim-service's history; here only the approval note exists.
+        assertThat(noteRepository.findByClaimIdOrderByCreatedAtAscIdAsc(claim)).extracting(ClaimNote::getNoteType)
+                .containsExactly(NoteType.APPROVAL);
+        assertThat(assessmentRepository.findByClaimId(claim).orElseThrow().getDecision()).isEqualTo(AssessmentDecision.APPROVED);
+    }
+
+    @Test
+    void settlingWithoutABodyIsAcceptedAndRefusalsReachTheStaffMember() throws Exception {
+        long staffMember = randomId();
+        long claim = randomId();
+
+        CLAIM_SERVICE.on("POST", "/api/internal/claims/" + claim + "/settle", 409,
+                ClaimJson.error(409, "Cannot move a claim from UNDER_REVIEW to SETTLED"));
+        action(staffMember, claim, "settle", null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Cannot move a claim from UNDER_REVIEW to SETTLED"));
+        CLAIM_SERVICE.on("POST", "/api/internal/claims/" + claim + "/settle", 403, ClaimJson.error(403, "This claim is not assigned to you"));
+        action(staffMember, claim, "settle", null).andExpect(status().isForbidden());
+        assertThat(assessmentRepository.findByClaimId(claim)).isEmpty();
+
+        CLAIM_SERVICE.on("POST", "/api/internal/claims/" + claim + "/settle", 200, ClaimJson.claim(claim, "SETTLED", staffMember));
+        action(staffMember, claim, "settle", null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.claimStatus").value("SETTLED"))
+                .andExpect(jsonPath("$.decision").doesNotExist());
+        assertThat(CLAIM_SERVICE.lastRequest().body()).isEqualTo("{\"comment\":null}");
+    }
+
+    @Test
     void approvingWithoutABodyIsAccepted() throws Exception {
         long staffMember = randomId();
         long claim = randomId();

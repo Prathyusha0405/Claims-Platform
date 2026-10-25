@@ -104,6 +104,18 @@ class RestClaimServiceClientTest {
     }
 
     @Test
+    void settlingPostsTheCommentToTheSettleEndpointAndANullCommentWhenThereIsNone() {
+        stub.on("POST", "/api/internal/claims/10/settle", 200, ClaimJson.claim(10, "SETTLED", 7L));
+
+        RemoteClaim settled = client.settle(10L, "Paid in full");
+        assertThat(settled.status()).isEqualTo(ClaimStatus.SETTLED);
+        assertThat(stub.lastRequest().body()).isEqualTo("{\"comment\":\"Paid in full\"}");
+
+        client.settle(10L, null);
+        assertThat(stub.lastRequest().body()).isEqualTo("{\"comment\":null}");
+    }
+
+    @Test
     void approvingWithoutACommentSendsANullComment() {
         stub.on("POST", "/api/internal/claims/10/approve", 200, ClaimJson.claim(10, "APPROVED", 7L));
 

@@ -102,6 +102,11 @@ public class RestClaimServiceClient implements ClaimServiceClient {
     }
 
     @Override
+    public RemoteClaim settle(Long claimId, String comment) {
+        return postDecision(claimId, "settle", new SettleBody(comment));
+    }
+
+    @Override
     public RemoteClaim requestInfo(Long claimId, String message) {
         return postDecision(claimId, "request-info", new RequestInfoBody(message));
     }
@@ -213,6 +218,9 @@ public class RestClaimServiceClient implements ClaimServiceClient {
     }
 
     private record ApproveBody(String comment) {
+    }
+
+    private record SettleBody(String comment) {
     }
 
     private record RejectBody(String reason) {

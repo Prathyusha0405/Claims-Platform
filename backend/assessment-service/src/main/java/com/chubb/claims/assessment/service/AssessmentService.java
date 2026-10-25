@@ -10,6 +10,7 @@ import com.chubb.claims.assessment.dto.NoteResponse;
 import com.chubb.claims.assessment.dto.PageResponse;
 import com.chubb.claims.assessment.dto.RejectClaimRequest;
 import com.chubb.claims.assessment.dto.RequestInfoRequest;
+import com.chubb.claims.assessment.dto.SettleClaimRequest;
 import com.chubb.claims.assessment.entity.AssessmentDecision;
 import com.chubb.claims.assessment.entity.ClaimAssessment;
 import com.chubb.claims.assessment.entity.ClaimNote;
@@ -99,6 +100,20 @@ public class AssessmentService {
         ClaimAssessment assessment = assessmentFor(claim, staffMember, now);
         assessment.recordDecision(AssessmentDecision.REJECTED, reason, now);
         noteRepository.save(new ClaimNote(claim.id(), staffMember.userId(), staffMember.fullName(), NoteType.REJECTION, reason, now));
+        return AssessmentResponse.from(assessmentRepository.save(assessment), claim.status());
+    }
+
+    /**
+     * APPROVED or REJECTED -> SETTLED. The staff member's decision stays as recorded and the optional comment lives in the
+     * claim history in claim-service, so nothing new is stored here; the assessment is only created if an earlier local
+     * write was lost.
+     */
+    @Transactional
+    public AssessmentResponse settle(Long claimId, SettleClaimRequest request, AuthenticatedUser staffMember) {
+        String comment = request == null ? null : trimToNull(request.comment());
+        RemoteClaim claim = claimServiceClient.settle(claimId, comment);
+
+        ClaimAssessment assessment = assessmentFor(claim, staffMember, clock.instant());
         return AssessmentResponse.from(assessmentRepository.save(assessment), claim.status());
     }
 

@@ -2,6 +2,7 @@ package com.chubb.claims.claim.controller;
 
 import com.chubb.claims.claim.config.SecurityConfig;
 import com.chubb.claims.claim.dto.ApproveClaimRequest;
+import com.chubb.claims.claim.dto.SettleClaimRequest;
 import com.chubb.claims.claim.dto.ClaimStatisticsResponse;
 import com.chubb.claims.claim.dto.ClaimSummaryResponse;
 import com.chubb.claims.claim.dto.ClaimTrendResponse;
@@ -104,6 +105,44 @@ class InternalClaimControllerTest {
     }
 
     @Test
+    void settleAcceptsACommentOrNoBodyAtAll() throws Exception {
+        when(claimService.settle(any(), any(), any())).thenReturn(summary(ClaimStatus.SETTLED, 7L));
+
+        mockMvc.perform(post("/api/internal/claims/10/settle").with(as(CLAIMS_STAFF)).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"comment":"Paid in full"}"""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SETTLED"));
+        verify(claimService).settle(10L, new SettleClaimRequest("Paid in full"), CLAIMS_STAFF);
+
+        mockMvc.perform(post("/api/internal/claims/11/settle").with(as(CLAIMS_STAFF))).andExpect(status().isOk());
+        verify(claimService).settle(org.mockito.ArgumentMatchers.eq(11L), isNull(), org.mockito.ArgumentMatchers.eq(CLAIMS_STAFF));
+    }
+
+    @Test
+    void settleRejectsAnOverlongComment() throws Exception {
+        mockMvc.perform(post("/api/internal/claims/10/settle").with(as(CLAIMS_STAFF)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"comment\":\"" + "x".repeat(2001) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.comment").exists());
+
+        verifyNoInteractions(claimService);
+    }
+
+    @Test
+    void settlingSomeoneElsesClaimIs403AndSettlingAClaimThatIsNotDecidedIs409() throws Exception {
+        when(claimService.settle(any(), any(), any()))
+                .thenThrow(new NotAssignedStaffException())
+                .thenThrow(new InvalidStatusTransitionException(ClaimStatus.UNDER_REVIEW, ClaimStatus.SETTLED));
+
+        mockMvc.perform(post("/api/internal/claims/10/settle").with(as(CLAIMS_STAFF)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("This claim is not assigned to you"));
+        mockMvc.perform(post("/api/internal/claims/10/settle").with(as(CLAIMS_STAFF)))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     void approveRejectsAnOverlongComment() throws Exception {
         mockMvc.perform(post("/api/internal/claims/10/approve").with(as(CLAIMS_STAFF)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"comment\":\"" + "x".repeat(2001) + "\"}"))
@@ -186,7 +225,7 @@ class InternalClaimControllerTest {
     @Test
     void onlyClaimsStaffMayPerformActions() throws Exception {
         for (AuthenticatedUser caller : List.of(MANAGER, CLAIMANT)) {
-            for (String action : List.of("assign", "approve", "reject", "request-info")) {
+            for (String action : List.of("assign", "approve", "reject", "request-info", "settle")) {
                 mockMvc.perform(post("/api/internal/claims/10/" + action).with(as(caller)).contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\":\"x\",\"message\":\"x\"}"))
                         .andExpect(status().isForbidden());
