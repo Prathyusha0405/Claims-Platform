@@ -13,11 +13,11 @@ A claims management platform assessment for **Chubb APAC**: three Spring Boot mi
 ![Flyway](https://img.shields.io/badge/Flyway-migrations-CC0200?style=flat-square&logo=flyway&logoColor=white)
 
 ![Local build](https://img.shields.io/badge/Local_Java_27_build-passed-2EA44F?style=flat-square)
-![Backend tests](https://img.shields.io/badge/Backend_tests-567_passed-2EA44F?style=flat-square)
-![Frontend tests](https://img.shields.io/badge/Frontend_tests-367_passed-2EA44F?style=flat-square)
-![Last verified](https://img.shields.io/badge/Last_verified-2026--10--23-blue?style=flat-square)
+![Backend tests](https://img.shields.io/badge/Backend_tests-640_passed-2EA44F?style=flat-square)
+![Frontend tests](https://img.shields.io/badge/Frontend_tests-384_passed-2EA44F?style=flat-square)
+![Last verified](https://img.shields.io/badge/Last_verified-2026--10--25-blue?style=flat-square)
 
-[Quick start](#quick-start) · [Build & test](#tests) · [API guide](docs/api-guide.md) · [Requirements](#requirements-coverage) · [Architecture](architecture.md) · [AI journal](AI_WORKING_JOURNAL.md)
+[Quick start](#quick-start) · [Build & test](#tests) · [API](#api) · [Requirements](#requirements-coverage) · [Architecture](architecture.md) · [AI journal](AI_WORKING_JOURNAL.md)
 
 </div>
 
@@ -30,7 +30,7 @@ workload.
 | Role | Code | Can do |
 |---|---|---|
 | **Claimant** | `CLAIMANT` | Register, sign in, file a claim, see and track their own claims, answer a claims staff member's request for information, read notifications |
-| **Claims staff** | `CLAIMS_STAFF` | See the work queue, take a claim, approve, reject or ask for more information, add internal notes, read notifications (a new claim is waiting; a claimant has answered) |
+| **Claims staff** | `CLAIMS_STAFF` | See the work queue, take a claim, approve, reject or ask for more information, settle a decided claim, add internal notes, read notifications (a new claim is waiting; a claimant has answered) |
 | **Manager** | `MANAGER` | Dashboard: totals by status, liability exposure, and charts of claims over time, by market, by claim type and per claims staff member, in USD; filtered by market, claim type and submission dates |
 
 ![The manager dashboard](docs/screenshots/02-manager-dashboard.png)
@@ -42,7 +42,7 @@ workload.
 3. [Quick start](#quick-start) · [demo logins](#demo-logins) · [seed data](#seed-data) · [try it end to end](#try-it-end-to-end)
 4. [A tour of the app](#a-tour-of-the-app)
 5. [Requirements coverage](#requirements-coverage)
-6. [API](#api) · [configuration](#configuration)
+6. [API](#api) · [configuration](#configuration) · [operations](#operations)
 7. [Tests](#tests)
 8. [Repository layout](#repository-layout) · [documentation map](#documentation-map)
 9. [Known limitations](#known-limitations) · [troubleshooting](#troubleshooting)
@@ -105,8 +105,21 @@ flowchart LR
 You need a JDK (the build uses 27), and Node.js with npm (developed on Node 26.3 / npm 11.16). Maven is **not**
 needed; the repository carries the Maven wrapper. Ports **8082, 8083, 8084 and 4200** must be free.
 
-Start the three services, each in its own terminal, from the `backend` folder (use `./mvnw` instead of `.\mvnw.cmd`
-on macOS/Linux):
+**One command**, from the repository root:
+
+```powershell
+node scripts/dev.mjs
+```
+
+It builds the three services (tests skipped), starts them, waits until each reports ready on its health endpoint, starts the
+Angular dev server and prints the addresses. Logs go to `.run/logs/` and **Ctrl+C** stops everything. If one of the four ports
+is taken it refuses to start and names the port; set `AUTH_PORT`, `CLAIM_PORT`, `ASSESSMENT_PORT` or `FRONTEND_PORT` to use
+others (the dev server is then given a matching proxy file). `--no-frontend` starts only the services, `--skip-build` reuses
+the jars already built, `--backend-dir` and `--frontend-dir` use a copy of either folder (see [troubleshooting](#troubleshooting)), and `--help` lists the rest. It was run on Windows; macOS and Linux are untried
+([limitations](#known-limitations)).
+
+**Or by hand**, each service in its own terminal, from the `backend` folder (use `./mvnw` instead of `.\mvnw.cmd` on
+macOS/Linux):
 
 ```powershell
 .\mvnw.cmd -pl auth-service spring-boot:run         # http://localhost:8084
@@ -160,10 +173,12 @@ with an empty platform instead, set `FLYWAY_TARGET=1` before starting the servic
    put your new claim at the top, open it and **Take this claim**, add an internal note, then **Request information**.
 3. Sign back in as the claimant. The claim shows the claims staff member's question; reply. It returns to *Under review*.
 4. As the claims staff member, **Approve** (or **Reject** with a reason).
-5. Sign in as the manager: the dashboard totals and liability exposure have moved by that one claim.
+5. Then **Settle claim**, with a comment if you like: the claim closes, the claimant is told, and it stops counting towards
+   liability exposure.
+6. Sign in as the manager: the dashboard totals and liability exposure have moved by that one claim (up when it was filed,
+   back down when it was settled).
 
-The claimant's notification bell fills up along the way. The same journey through the API, with real requests and
-responses, is in [docs/api-guide.md](docs/api-guide.md).
+The claimant's notification bell fills up along the way.
 
 ## A tour of the app
 
@@ -179,6 +194,8 @@ Screenshots of the running app on the seed data (development build, 1440 × 900)
 | **Claims staff: work queue.** Submitted claims nobody holds, oldest first, with a market column and filter and a one-click *Take claim*; a second tab lists the claims the staff member holds. | ![Work queue](docs/screenshots/07-staff-work-queue.png) |
 | **Claims staff: work queue by market.** Choosing a market (here Japan) narrows the queue to the claims filed there: 19 of the 100 waiting in the seed data. | ![Work queue by market](docs/screenshots/09-staff-work-queue-by-market.png) |
 | **Claims staff: claim review.** The decision actions (request information, reject, approve), the claim's facts and internal notes the claimant never sees. | ![Claim review](docs/screenshots/08-staff-claim-review.png) |
+| **Claims staff: settle a decided claim.** Once a claim is approved or rejected, the staff member who holds it can settle it: an optional comment, the claimant is told, and it stops counting towards liability exposure. | ![Settle a claim](docs/screenshots/17-staff-settle-claim.png) |
+| **Claims staff: a settled claim.** The history now ends with *Claim settled* and its comment, and no decision is left to make. | ![A settled claim](docs/screenshots/18-staff-claim-settled.png) |
 | **Claims staff: notifications.** An alert for every new claim waiting in the queue, and one when a claimant answers a request for information; the bell checks every ten seconds. | ![Staff notifications](docs/screenshots/12-staff-notifications.png) |
 | **Manager: dashboard.** One row of filters (market, period, claim type) above everything it scopes, then liability exposure in USD with its formula and the status totals. | ![Dashboard](docs/screenshots/02-manager-dashboard.png) |
 | **Manager: claims over time.** Claims filed per month (or per week for a window of up to six months), split into pending (blue) and decided (gray); hover for the numbers, *View as table* for the same figures as text. | ![Claims over time](docs/screenshots/13-manager-claims-over-time.png) |
@@ -202,14 +219,15 @@ How the brief in [CLAUDE.md](CLAUDE.md) maps to the code. "Verified" means check
 | OpenAPI / Swagger | Done | Swagger UI on each service ([below](#api)) |
 | Auth endpoints (register, login, `users/me`) | Done | [auth-service](#api) |
 | Claim endpoints (create, get by number, my-claims, search, additional-info) | Done | plus notification endpoints the UI needs |
-| Assessment endpoints (unassigned, assign, approve, reject, request-info, notes, dashboards) | Done | plus `GET .../notes` and a fourth dashboard, `claims-over-time` |
-| Claim lifecycle, only valid transitions | Done, with one gap | transition table in `ClaimStatus`; nothing can move a claim to `SETTLED` yet ([limitations](#known-limitations)) |
-| Event publisher pattern | Done | `ClaimEventPublisher` + `LocalClaimEventPublisher` (log, audit history, notifications); the brief's events plus `ADDITIONAL_INFO_RECEIVED` |
+| Assessment endpoints (unassigned, assign, approve, reject, request-info, notes, dashboards) | Done | plus `POST .../settle`, `GET .../notes` and a fourth dashboard, `claims-over-time` |
+| Claim lifecycle, only valid transitions | Done | transition table in `ClaimStatus`; the whole path to `SETTLED` can be driven through the API and the app |
+| Event publisher pattern | Done | `ClaimEventPublisher` + `LocalClaimEventPublisher` (log, audit history, notifications); the brief's events plus `ADDITIONAL_INFO_RECEIVED` and `CLAIM_SETTLED` |
 | Dashboard: totals, pending, approved, rejected, claims staff workload, liability exposure | Done, by market and in USD | exposure is `SUM(claimAmount) WHERE status != SETTLED` converted to USD at fixed indicative rates, in one class; every dashboard takes an optional `market`, `claimType`, `fromDate` and `toDate`, and `byMarket` shows each market in its own currency and in USD |
 | Manager visuals and filters | Done, beyond the brief | charts of claims over time, by market, by claim type and per claims staff member, each with a table view; filters for market, claim type and submission dates that every figure and chart follows ([API](#api), [architecture §9](architecture.md#9-dashboards)) |
 | Business context: six markets, each in its own currency | Done | a `market` and a `currency` on every claim; market filter on search, the work queue and the dashboards ([business context](#business-context)) |
 | Search by claim number, policy number, status, date range, assigned staff member; paging and sorting | Done, plus market | `GET /api/claims/search`; the work queue also filters by market |
-| Tests: service, controller, security, dashboard (JUnit 5, Mockito, MockMvc) | Done | 567 backend tests, plus 367 front-end tests ([results](#tests)) |
+| Tests: service, controller, security, dashboard (JUnit 5, Mockito, MockMvc) | Done | 640 backend tests, plus 384 front-end tests ([results](#tests)) |
+| Operating it: health checks, request ids, one-command start, CI | Done, beyond the brief | [operations](#operations) |
 | Angular: Auth, Claimant, Staff, Manager, Shared, Core; the nine pages; reactive forms; route guards | Done | feature folders of standalone, lazy-loaded components rather than `NgModule`s |
 | README.md, architecture.md, AI_WORKING_JOURNAL.md | Done | [documentation map](#documentation-map) |
 
@@ -223,8 +241,7 @@ Interactive docs (Swagger UI, with a bearer-token "Authorize" button) and the in
 | claim-service :8082 | http://localhost:8082/swagger-ui.html | `jdbc:h2:mem:claimdb` at `/h2-console` |
 | assessment-service :8083 | http://localhost:8083/swagger-ui.html | `jdbc:h2:mem:assessmentdb` at `/h2-console` |
 
-Calls need `Authorization: Bearer <accessToken>` from `POST /api/auth/login`. Tokens last one hour. A worked example with
-`curl`, real responses and every error shape is in **[docs/api-guide.md](docs/api-guide.md)**.
+Calls need `Authorization: Bearer <accessToken>` from `POST /api/auth/login`. Tokens last one hour.
 
 **auth-service**
 
@@ -254,13 +271,14 @@ Calls need `Authorization: Bearer <accessToken>` from `POST /api/auth/login`. To
 | `GET /api/staff/claims/unassigned` | claims staff | Work queue: submitted claims nobody holds; optional `market` |
 | `POST /api/staff/claims/{id}/assign` | claims staff | Take a claim (becomes *Under review*) |
 | `POST /api/staff/claims/{id}/approve` · `/reject` · `/request-info` | assigned staff member | Decide, with a comment, a reason (required) or a question (required) |
+| `POST /api/staff/claims/{id}/settle` | assigned staff member | Close an approved or rejected claim as *Settled*, with an optional comment the claimant can read |
 | `GET` / `POST /api/staff/claims/{id}/notes` | claims staff | Read and add internal notes |
 | `GET /api/dashboard/status-summary` · `/staff-workload` · `/liability-exposure` · `/claims-over-time` | manager | Dashboard figures, computed live; optional `market`, `claimType`, `fromDate` and `toDate` (the claim's submission date, UTC, both ends inclusive); money in USD, converted at fixed indicative rates |
 
 Paging is zero-based (`page`, `size`, default 20, capped at 100) and sorting is `sort=field,asc|desc` over a fixed list of
 fields. Every error has the same JSON shape (`timestamp`, `status`, `error`, `message`, `path`, optional
 `fieldErrors`). Claim lifecycle: `SUBMITTED → UNDER_REVIEW ⇄ MORE_INFO_REQUIRED`, then `APPROVED` or `REJECTED`, then
-`SETTLED`; only these transitions are allowed.
+`SETTLED` (by the staff member who holds the claim); only these transitions are allowed.
 
 ## Configuration
 
@@ -270,50 +288,61 @@ Everything has a development default; override with environment variables.
 |---|---|---|
 | `JWT_SECRET` | a development-only value | HS256 signing secret, at least 32 bytes. **Must be identical in all three services.** |
 | `SERVER_PORT` | 8084 / 8082 / 8083 | Standard Spring Boot override of a service's port. If you change one, update `frontend/claims-portal/proxy.conf.json` and restart `npm start` |
+| `AUTH_PORT`, `CLAIM_PORT`, `ASSESSMENT_PORT`, `FRONTEND_PORT` | 8084, 8082, 8083, 4200 | Read by `scripts/dev.mjs` only: it passes `--server.port` to each service, points assessment-service at the chosen claim-service port and gives the dev server a matching proxy file |
 | `FLYWAY_TARGET` | `latest` | `1` = schema only, no demo data |
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | in-memory H2, `sa`, empty | Per-service database |
 | `CLAIM_SERVICE_URL` | `http://localhost:8082` | Where assessment-service finds claim-service |
 | `app.dashboard.reporting-currency`, `app.dashboard.rates` (assessment) | `USD`; per 1 USD: AUD 1.50, HKD 7.80, JPY 150, MYR 4.50, NZD 1.65, SGD 1.35 | The currency the dashboards report in, and the fixed, indicative rates used to convert each market's amounts into it. Not live rates. Keep them equal to the rates the seed amounts were converted at, or the documented USD figures drift |
 | `app.seed.demo-users` (auth) | `true` | Ensures the demo claims staff and manager accounts exist; turn off outside development |
 
+## Operations
+
+| What | Detail |
+|---|---|
+| **Health checks** | Every service answers `GET /actuator/health`, `/actuator/health/liveness` and `/actuator/health/readiness` without a token, with the status only (`UP` or `DOWN`, never component details). Nothing else of Actuator is exposed. assessment-service's readiness, and so its overall health, goes `DOWN` while claim-service cannot be reached, because every staff action and every dashboard figure comes from it; its liveness does not, so a claim-service outage is not a reason to restart it |
+| **Request ids** | Every response carries an `X-Request-Id`. Send one of your own (letters, digits, `.`, `_`, `-`, up to 64 characters) and it is kept; anything else is replaced by a generated one, so a caller cannot forge log lines. Each log line shows the id in square brackets (`-` outside a request), and assessment-service passes it on to claim-service, so one staff action can be followed through both logs |
+| **Logs** | Plain text on the console; `scripts/dev.mjs` also writes each service's to `.run/logs/<service>.log` |
+| **One-command start** | `node scripts/dev.mjs`, described under [Quick start](#quick-start) |
+| **CI** | `.github/workflows/ci.yml` runs every backend test (`mvnw verify`), every front-end test and a production build of the app on each push to `main` and each pull request. It has not been run yet: it needs a JDK 27 on the runner and was written from the commands in this README |
+
 ## Tests
 
 ```powershell
-# Backend: 567 tests (auth 79, claim 293, assessment 195)
+# Backend: 640 tests (auth 92, claim 326, assessment 222)
 cd backend
 .\mvnw.cmd test
 
-# Frontend: 367 tests in 28 files (Vitest + jsdom)
+# Frontend: 384 tests in 30 files (Vitest + jsdom)
 cd frontend\claims-portal
 npx ng test --watch=false
 ```
 
 Backend: service and lifecycle rules, controllers (MockMvc), security (role matrix, forged/expired tokens), dashboards and
 liability maths, repositories and search, and integration tests on H2 + Flyway including the seed data. Frontend: guards,
-interceptors, stores, API clients, routes, the auth and claimant pages, the work queue, the manager dashboard with its
+interceptors, stores, API clients, routes, the auth and claimant pages, the work queue, the claim review page, the prompt dialog, the manager dashboard with its
 filters and its three chart components, the notification bell and the utilities. Stop running services before
 `mvnw test` if they were started from the same folder, since both write to `target/`.
 
-### Latest results (2026-10-23, JDK 27)
+### Latest results (2026-10-25, JDK 27)
 
 | Suite | Tests | Passed | Failed | Skipped |
 |---|---:|---:|---:|---:|
-| auth-service | 79 | 79 | 0 | 0 |
-| claim-service | 293 | 293 | 0 | 0 |
-| assessment-service | 195 | 195 | 0 | 0 |
-| **Backend total** | **567** | **567** | **0** | **0** |
-| Frontend (28 files) | 367 | 367 | 0 | 0 |
-| **All** | **934** | **934** | **0** | **0** |
+| auth-service | 92 | 92 | 0 | 0 |
+| claim-service | 326 | 326 | 0 | 0 |
+| assessment-service | 222 | 222 | 0 | 0 |
+| **Backend total** | **640** | **640** | **0** | **0** |
+| Frontend (30 files) | 384 | 384 | 0 | 0 |
+| **All** | **1,024** | **1,024** | **0** | **0** |
 
-Both suites were run in full on 2026-10-23, after the manager visuals and filters were added: all three backend services in a
-single `mvnw test` run (in a copy of `backend/`, so that running services were not disturbed), the flaky test described under
-*Known limitations* included, and the front end with `ng test` and a production build. The new dashboard behaviour was also run
-against the real services (seed data, spare ports), where every figure was cross-checked against claim search or against another
-dashboard; the numbers are in [journal entry 28](AI_WORKING_JOURNAL.md#28--2026-10-23-manager-dashboard-visuals-and-filters). That is not the whole history: earlier the same day,
-before the renames, the first full backend run had failures. claim-service had 1, a seed
-assertion that still expected one statistics row per status (fixed since), and assessment-service had **1 out of 163**,
-the flaky test, which has failed under load three times now (on 2026-10-22 and twice on 2026-10-23) and passes on re-run.
-That test has not been fixed.
+Both suites were run in full on 2026-10-25, after settling and the operations work were added: all three backend services in one
+Maven run in a copy of `backend/` (so running services were not disturbed), and the front end with `ng test` and a production
+build. The new behaviour was also run against the real services started by `scripts/dev.mjs` (seed data, spare ports): 39
+checks covering the health endpoints, a request id travelling from assessment-service into claim-service's log, and a claim taken
+from filing through approval to settlement, with the dashboard's liability exposure and settled total moving by exactly the
+claim's amount; and the settle screen was driven in a real browser (8 checks, including Cancel). That is not the whole history:
+on 2026-10-23, before the renames, the first full backend run had failures (claim-service 1, a seed assertion that still expected
+one statistics row per status, fixed since; assessment-service **1 out of 163**, the flaky test, which has failed under load
+three times now, on 2026-10-22 and twice on 2026-10-23). It passed in every full run on 2026-10-25. It has not been fixed.
 
 ### Coverage (measured 2026-10-22)
 
@@ -341,7 +370,7 @@ Frontend, measured with Vitest's V8 provider (includes the shared test helpers i
 The front-end figure is held down by the claims staff and manager pages and a few shared components that have no spec of their
 own. Share of lines covered: claims staff **claim-review** 1%, **my-assigned-claims** 5%, **unassigned-queue** 52%, manager
 **dashboard** 35%, the **bar-chart** component 1%, the **text-prompt dialog** 7% and the **notifications page** 49%. The
-core services, interceptors, login, registration, create-claim and my-claims pages are at 92-98%, and claim-details at 89%. The work queue's `unassigned-queue` and the manager dashboard have had specs since, which these figures
+core services, interceptors, login, registration, create-claim and my-claims pages are at 92-98%, and claim-details at 89%. The work queue's `unassigned-queue`, the manager dashboard, `claim-review` and the text-prompt dialog have had specs since, which these figures
 predate.
 (Vitest's text report leaves out files that are 100% covered, so the three guards do not appear in it; they are 100%
 covered and counted in the totals.)
@@ -376,8 +405,10 @@ frontend/claims-portal/       the Angular app (its own README covers the front e
   src/app/shared/             reusable components, models, utilities
   src/app/features/           auth, claimant, staff, manager pages (lazy-loaded)
   proxy.conf.json             /api/* → the three services
+scripts/
+  dev.mjs                     one command starts the services and the dev server
+.github/workflows/ci.yml      tests and a production build on every push and pull request
 docs/
-  api-guide.md                worked API examples and error shapes
   screenshots/                the images used above
 CLAUDE.md                     the project brief
 README.md · architecture.md · AI_WORKING_JOURNAL.md
@@ -395,8 +426,10 @@ README.md · architecture.md · AI_WORKING_JOURNAL.md
 
 ## Known limitations
 
-* **Nothing settles a claim.** There is no settle endpoint, so *Settled* only exists in the seed data and liability
-  exposure can never decrease.
+* **Settling records the fact, not a payment.** The staff member who holds an approved or rejected claim can settle it, with an
+  optional comment, and that closes it. There is no field for the amount paid, the payee or a payment reference, and nobody
+  but that staff member can settle it (a manager cannot, and there is no reassignment). A rejected claim can be settled too,
+  which is how the brief's lifecycle ends.
 * Per the brief's formula, **rejected claims count toward liability exposure**; only settled ones are excluded.
 * Claims staff can only take claims for themselves, and an assignee is shown as "Staff #n" because there is no staff
   directory.
@@ -433,8 +466,15 @@ README.md · architecture.md · AI_WORKING_JOURNAL.md
   (`assignedStaffId`, `staffId`, `staffName`, the `staff_id` columns, `/api/dashboard/staff-workload`) were changed by editing
   the Flyway `V1` and `V2` files, which works only because the databases are in memory and rebuilt on every start. Against a
   database that already holds data it would take new migrations that rename the columns and rewrite the stored role values.
-* The claim-review and my-assigned-claims pages have no component specs (they were checked by walking the running app); the
-  work queue and the manager dashboard have one each.
+* The my-assigned-claims page has no component spec (it was checked by walking the running app); the work queue, the claim
+  review page, the manager dashboard and the shared prompt dialog have one each.
+* **CI is written but has not run.** `.github/workflows/ci.yml` follows the commands in this README and needs a Temurin JDK 27
+  on the runner; nothing here could execute it.
+* **The start script was run on Windows only.** `scripts/dev.mjs` was exercised on Windows 11 (a start, a refused start on a
+  busy port, a service dying under it, the stop that follows). Its macOS and Linux branches (process groups, `sh mvnw`) have not
+  been run, and its Ctrl+C handler was not exercised from a script.
+* **No metrics or tracing.** The health endpoints and the request id are all there is for operating the services; logs are plain
+  text.
 
 More in [architecture.md](architecture.md#15-known-gaps-and-next-steps).
 
@@ -443,8 +483,11 @@ More in [architecture.md](architecture.md#15-known-gaps-and-next-steps).
 | Symptom | Fix |
 |---|---|
 | Dashboard or work queue shows "service unavailable" (503) | claim-service (8082) is not running; assessment-service depends on it |
+| `node scripts/dev.mjs` says "Cannot start: port … is already in use" | Another copy, often one started from your IDE, holds the port. Stop it, or set `AUTH_PORT`, `CLAIM_PORT`, `ASSESSMENT_PORT` or `FRONTEND_PORT` to free ports |
+| assessment-service reports `DOWN` on `/actuator/health/readiness` | It cannot reach claim-service: check that claim-service is up and that `CLAIM_SERVICE_URL` points at it |
 | "Port 808x was already in use", or `ng serve` offers a different port | Something already holds the port, usually the same service started twice (an IDE run configuration and a terminal). Find it with `netstat -ano \| findstr :8084` then `tasklist /FI "PID eq <pid>"` (macOS/Linux: `lsof -i :8084`), and stop it |
 | Sign-in fails or calls go to the wrong service after a port change | The dev-server proxy reads `proxy.conf.json` only when it starts: stop `npm start` and run it again |
 | Everything signs out after changing `JWT_SECRET` in one service | The secret must match in all three; restart them together |
 | Startup error "required a bean of type PasswordEncoder", or `application.yml` / `db/migration` missing from `target/classes`, or "Failed to delete …\target\classes" | The repository is inside a OneDrive folder, which turns freshly built `target` folders into placeholders and breaks Maven and IDE builds. Delete the affected `target` folder (`Remove-Item -Recurse -Force <service>\target`) and rebuild. The lasting fix is to keep the repo outside OneDrive. |
 | First page load after `npm start` is slow | The dev server compiles on demand; later loads are fast |
+| Approve, Reject, Request information and Settle do nothing, and the browser console shows `NG0201: No provider found for RendererFactory2` or `NG0200: Circular dependency … ViewportRuler` | The dev server's dependency cache was rewritten underneath it. Starting a second `ng serve` from the same `frontend/claims-portal` folder does that, because both share `.angular/cache`; the page then loads two copies of Angular, and the dialogs, being lazy-loaded, are what fail. Stop `npm start`, delete `frontend/claims-portal/.angular/cache` if it still misbehaves, start it again and hard-refresh (Ctrl+Shift+R). For a second dev server, serve a copy of the folder (`node scripts/dev.mjs --frontend-dir <copy>`; the copy needs its own `node_modules`, because a junction to this one does not build) |

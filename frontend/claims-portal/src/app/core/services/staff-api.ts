@@ -37,6 +37,12 @@ export class StaffApi {
     return this.http.post<Assessment>(API.staff.reject(id), { reason });
   }
 
+  /** APPROVED or REJECTED → SETTLED, by the assigned staff member only. The optional comment goes in the claim history. */
+  settle(id: number, comment?: string): Observable<Assessment> {
+    const text = comment?.trim();
+    return this.http.post<Assessment>(API.staff.settle(id), text ? { comment: text } : {});
+  }
+
   /** UNDER_REVIEW → MORE_INFO_REQUIRED, by the assigned staff member only. The claimant sees the message. */
   requestInfo(id: number, message: string): Observable<Assessment> {
     return this.http.post<Assessment>(API.staff.requestInfo(id), { message });

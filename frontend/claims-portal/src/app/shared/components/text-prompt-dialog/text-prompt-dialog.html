@@ -20,7 +20,9 @@
   </mat-dialog-content>
 
   <mat-dialog-actions align="end">
-    <button mat-button type="button" mat-dialog-close>Cancel</button>
+    <!-- Bound to undefined on purpose: a bare mat-dialog-close attribute closes with '', which promptForText cannot tell apart
+         from a confirmation with nothing typed, so Cancel would go on to approve (or settle) the claim. -->
+    <button mat-button type="button" [mat-dialog-close]="undefined">Cancel</button>
     <button mat-flat-button type="submit" [class.prompt__danger]="data.destructive">
       {{ data.confirmLabel }}
     </button>

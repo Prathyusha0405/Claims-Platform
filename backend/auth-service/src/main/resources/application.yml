@@ -43,3 +43,20 @@ app:
     # Development only: creates a demo CLAIMS_STAFF (staff@chubb.com) and MANAGER (manager@chubb.com) at startup.
     # Public registration can only create CLAIMANTs, so this is how staff accounts exist locally.
     demo-users: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Only the health endpoints are exposed; nothing else of Actuator is reachable.
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true      # adds /actuator/health/liveness and /actuator/health/readiness
+      show-details: never  # callers without a token see the status only
+
+logging:
+  pattern:
+    # Every log line carries the id of the request that caused it (see RequestIdFilter); "-" outside a request.
+    level: "%5p [%X{requestId:--}]"

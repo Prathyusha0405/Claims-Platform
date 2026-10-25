@@ -59,7 +59,7 @@ The brief leaves these open; the choices made are stated here so they can be cha
 | Exchange rates | The dashboards report in USD, converting at fixed, indicative rates held in assessment-service's configuration (`app.dashboard.rates`). They are not live market rates; a real deployment would take dated rates from a rates service |
 | Claim types | `AUTO`, `HOME`, `HEALTH`, `TRAVEL`, `PERSONAL_ACCIDENT`, `OTHER` |
 | Notifications | In-app only (no email or SMS). Claimants hear about every lifecycle event; every claims staff member hears about each new claim, and the one holding a claim hears when the claimant replies; managers never |
-| Settling | `SETTLED` is part of the lifecycle but the brief names no actor or endpoint for it, so none was built (section 15) |
+| Settling | `SETTLED` closes an APPROVED or REJECTED claim. The brief names no actor, so the staff member who holds the claim does it, by the same rule as a decision, with an optional comment. There is no payment record behind it (no amount paid, payee or reference) |
 | Data and deployment | Demo scale: in-memory databases, seeded on start, a development proxy in place of a gateway |
 
 ### Quality attributes and how they are met
@@ -70,8 +70,9 @@ The brief leaves these open; the choices made are stated here so they can be cha
 | **Auditability** | `claim_history` is append-only and written in the same transaction as the change; notifications and claims staff notes are insert-only |
 | **Consistency** | One writer per fact: claim-service owns every status change, behind a transition table and an optimistic-lock version column |
 | **Resilience** | Assessment-service bounds its calls to claim-service (2 s connect, 5 s read) and turns failures into 502/503 instead of hanging or showing stale numbers |
+| **Operability** | Public health and probe endpoints on every service (assessment-service's readiness follows claim-service, its liveness does not), a request id on every response and log line that assessment-service passes on to claim-service, and a one-command start that waits for the health checks (decisions, section 14) |
 | **Maintainability** | Same layering in every service (controller, service, repository, entity, dto); business rules in one named class each (`ClaimStatus`, `LiabilityExposureCalculator`, `PageableSanitizer`); constructor injection throughout and no field injection in production code |
-| **Testability** | 567 backend and 367 front-end tests; the event publisher (`ClaimEventPublisher`) and the claim-service client (`ClaimServiceClient`) are interfaces, and the liability calculation is a pure function |
+| **Testability** | 640 backend and 384 front-end tests; the event publisher (`ClaimEventPublisher`) and the claim-service client (`ClaimServiceClient`) are interfaces, and the liability calculation is a pure function |
 | **Performance** | Indexes follow the queries, list endpoints are paged and capped at 100 rows, sort fields are a whitelist, dashboards use `GROUP BY` aggregates rather than loading claims |
 | **Accessibility** | Material components, AA-contrast status colours, a "View as table" toggle on the dashboard charts |
 | **Extensibility** | A broker can replace the local event publisher without touching the service layer (section 7); each service can move to its own database or host, because the only things they share are the JWT secret and assessment-service's configured URL for claim-service |
@@ -166,8 +167,8 @@ stateDiagram-v2
     MORE_INFO_REQUIRED --> UNDER_REVIEW: claimant replies
     UNDER_REVIEW --> APPROVED: assigned staff member approves
     UNDER_REVIEW --> REJECTED: assigned staff member rejects
-    APPROVED --> SETTLED
-    REJECTED --> SETTLED
+    APPROVED --> SETTLED: assigned staff member settles
+    REJECTED --> SETTLED: assigned staff member settles
     SETTLED --> [*]
 ```
 
@@ -182,7 +183,7 @@ refuses anything else with `InvalidStatusTransitionException` (HTTP 409). Who ma
 | MORE_INFO_REQUIRED → UNDER_REVIEW | the claim's CLAIMANT | `POST /api/claims/{id}/additional-info` | Only on their own claim |
 | UNDER_REVIEW → APPROVED | assigned CLAIMS_STAFF | `…/approve` | Comment optional |
 | UNDER_REVIEW → REJECTED | assigned CLAIMS_STAFF | `…/reject` | Reason required |
-| APPROVED/REJECTED → SETTLED | nobody yet | none | **No settle endpoint exists** (section 15) |
+| APPROVED/REJECTED → SETTLED | assigned CLAIMS_STAFF | `…/settle` | Comment optional. Closes the claim: it stops counting as liability exposure and the claimant is told |
 
 Concurrency: `claims` carries a `@Version` column (optimistic locking). Two claims staff racing for the same claim cannot
 both win; the loser gets a 409 and the UI reloads the claim and says it was already taken.
@@ -215,6 +216,9 @@ Row-level rules inside claim-service: a claimant opening someone else's claim ge
 leaked); claimants' searches are silently restricted to their own claims; notifications only ever show and change the
 caller's own, and another user's notification id is a 404.
 
+**Health endpoints.** `/actuator/health/**` is public in all three services (probes and the start script call it without a token). Callers
+without a token see the status only, never component details, and no other Actuator endpoint is exposed.
+
 Registration can only create CLAIMANTs. Claims staff and manager accounts come from the seed migration and, in development,
 from `DemoUserSeeder` (`app.seed.demo-users=true`).
 
@@ -246,7 +250,7 @@ public interface ClaimEventPublisher { void publish(ClaimEvent event); }
 Because it joins the caller's transaction, the claim change, its audit row and its notifications commit or roll back
 together. Event types: `CLAIM_CREATED`, `CLAIM_ASSIGNED`, `CLAIM_APPROVED`, `CLAIM_REJECTED`,
 `ADDITIONAL_INFO_REQUESTED`, plus `ADDITIONAL_INFO_RECEIVED` (added so the claimant's reply is audited and the claims staff member
-can be told).
+can be told) and `CLAIM_SETTLED` (the last lifecycle step).
 
 Who is notified: the **claimant** gets one notification per lifecycle event; **every claims staff member** gets one when a
 new claim is submitted (it is waiting in the work queue); the **assigned staff member** also gets one when the claimant
@@ -344,7 +348,7 @@ erDiagram
   neither service has a users table. This is why the UI shows "Staff #2" for an assignee rather than a name; there is no
   staff directory to look one up in.
 * **Seed data** (V2) is one coherent generated world: 26 users, 250 claims (AU 70, HK 30, JP 40, MY 35, NZ 25, SG 50, each in its
-  market's currency; the amounts were converted from USD-equivalents, and yen are whole numbers), 500 history rows, 200
+  market's currency; the amounts were converted from USD-equivalents, and yen are whole numbers), 536 history rows (500, plus a `CLAIM_SETTLED` event for each of the 36 settled claims), 200
   notifications, 150 assessments, 200 notes. Starting a service with `FLYWAY_TARGET=1` skips V2 and gives an empty platform. The expected
   dashboard figures are printed in the header of claim-service's V2 and pinned by `SeedDataIntegrationTest` in each service.
 * Databases are in-memory and rebuilt on every start.
@@ -517,10 +521,10 @@ need a second service start a stub on an ephemeral port, so the suite can run wh
 use `@Autowired` for Spring test beans such as `MockMvc`; production code uses constructor injection only. The counts and
 coverage are in the README.
 
-Known gap: the claim-review and my-assigned-claims pages have no component specs (the work queue and the manager dashboard have
-one each). They were verified by walking the real UI in a browser
+Known gap: the my-assigned-claims page has no component spec (the work queue, the claim-review page, the manager dashboard and the shared prompt dialog have
+one each). The pages were verified by walking the real UI in a browser
 (claimant files, claims staff member takes/notes/requests info, claimant replies, claims staff member approves, manager dashboard), which found
-three forms whose submit never fired (section 14), but that walkthrough script is not part of the repository.
+three forms whose submit never fired (section 14), but that walkthrough script is not part of the repository. Settling, the health endpoints and the request id were likewise run against the real services and in the browser; those scripts are not in the repository either.
 
 ## 14. Decisions and trade-offs
 
@@ -547,12 +551,18 @@ three forms whose submit never fired (section 14), but that walkthrough script i
 | Dashboards **convert at fixed configured rates**, in assessment-service | Exposure needs one number across six currencies, and a rate card belongs to reporting, not to the claims | The USD figures are indicative, not live, and move if the rates change; the per-market figures in local currency do not |
 | The seed amounts were **converted from USD-equivalents** and `V1`/`V2` edited in place again | Realistic local amounts (yen in the hundred-thousands) while the documented USD totals survive to within cents | Same in-memory-only caveat as for `market`; the seed's USD exposure moved from 2,674,303.50 to 2,674,303.58 by rounding |
 | auth-service on **8084**, not 8081 | The project owner moved it on 2026-10-23 after reporting that auth-service and the front end were both using 8081 on their machine | `CLAUDE.md`, the proxy and the docs were changed to match; anything else still pointing at 8081 would break |
+| Settling is **one more action of the staff member who holds the claim**, and records only the fact | It is the same rule as a decision, enforced in the same place, with the same audit row and notification; no new actor, role or table is needed | No payment details, and no one else can settle: a manager cannot, and a claim cannot be reassigned |
+| The prompt dialog's **Cancel closes with `undefined`** (`[mat-dialog-close]="undefined"`) | A bare `mat-dialog-close` attribute closes with `''`, which `promptForText` could not tell from "confirmed with nothing typed": Cancel on an optional prompt went on to approve (or settle) the claim | Any new dialog button that means "no" must close with `undefined` |
+| **Readiness depends on claim-service, liveness does not** | Without claim-service, assessment-service can do nothing useful and should be taken out of rotation, but restarting it would not help | A probe on `/actuator/health` (which includes readiness) sees assessment-service go `DOWN` with claim-service, so use the liveness probe for restarts |
+| A **request id** in a filter, the log pattern and the call to claim-service, not a tracing system | One id on every log line of one staff action is enough to follow it through two services at this size, with no new infrastructure | Plain text logs only: no timings, no tree of calls |
+| The one-command start is a **Node script** (`scripts/dev.mjs`) | Docker is ruled out, Node is already needed for the front end, and a script can wait on the health endpoints and stop everything on Ctrl+C | Run on Windows only; the macOS and Linux branches are untried |
 | `(submit)` + `preventDefault` on forms without a `FormGroup` | `(ngSubmit)` only fires from `NgForm`/`FormGroupDirective`; three forms had neither and silently did a native submit | Forms with a `FormGroup` still use `(ngSubmit)` |
 
 ## 15. Known gaps and next steps
 
-* **Nothing moves a claim to SETTLED**, so liability exposure can never fall and the SETTLED count is only seed data. A
-  settle endpoint (APPROVED or REJECTED → SETTLED) plus a `CLAIM_SETTLED` event is the natural next feature.
+* **Settling records the fact, not a payment**: no amount paid, payee or payment reference, and only the staff member who holds
+  the claim can do it (a manager cannot, and there is no reassignment). The 36 seeded settled claims were given a settlement
+  event so their histories end the way new ones do.
 * **Claims over time is bucketed in memory** (two values per claim in scope, put into periods in Java, in UTC). A database-side
   `GROUP BY` or a daily rollup is the move at volume. The browser works out the period presets (last 30 or 90 days, year to date)
   from its own date while the server reads them as UTC, so the edge of a range can be a day off for a manager far east of UTC.
@@ -568,8 +578,10 @@ three forms whose submit never fired (section 14), but that walkthrough script i
 * Production hardening: refresh tokens, asymmetric JWT, rate limiting, disabling the H2 console and Swagger UI, a real
   database (the Flyway scripts and the claim-number query, `NEXT VALUE FOR claim_number_seq`, were written for and only
   run on H2, so a move would need them reviewed), a reverse proxy.
-* Component specs for the claim-review and my-assigned-claims pages, and a committed end-to-end suite.
+* A component spec for the my-assigned-claims page, and a committed end-to-end suite (the checks that were run live are not in the repository).
 * One flaky backend test, `StaffWorkflowIntegrationTest.aStaffMemberTakesAClaimAsksForInformationAndApprovesIt`: it compares a
   JWT with one minted a moment later, which differ when the clock ticks over a second between them (a test defect, not a
   service defect; details in the README). Not fixed.
-* Initial bundle is 501.15 kB, 1.15 kB over the 500 kB *warning* budget (the error budget is 1 MB; it transfers 126.5 kB).
+* Initial bundle is 501.25 kB, 1.25 kB over the 500 kB *warning* budget (the error budget is 1 MB; it transfers 126.5 kB).
+* **CI is written but has not run** (`.github/workflows/ci.yml`; it needs a JDK 27 on the runner), and the start script has been
+  run on Windows only. There are no metrics or traces: health endpoints and a request id are the whole of the operating story.

@@ -16,10 +16,19 @@ export function latestInfoRequest(history: readonly ClaimHistoryEntry[]): ClaimH
  *  - `decide`             it is under review and this staff member holds it: approve, reject or ask for information
  *  - `held-by-other`      it is under review but another staff member holds it: read and add notes only
  *  - `awaiting-claimant`  the claimant has been asked for information: nothing to do until they answer
- *  - `closed`             decided or settled: read and add notes only
+ *  - `settle`             decided (approved or rejected) and this staff member holds it: settle it, which closes it
+ *  - `awaiting-settlement` decided but another staff member holds it: read and add notes only
+ *  - `closed`             settled: read and add notes only
  * The UI only offers what the backend would accept; the backend still checks every action itself.
  */
-export type ReviewAccess = 'take' | 'decide' | 'held-by-other' | 'awaiting-claimant' | 'closed';
+export type ReviewAccess =
+  | 'take'
+  | 'decide'
+  | 'held-by-other'
+  | 'awaiting-claimant'
+  | 'settle'
+  | 'awaiting-settlement'
+  | 'closed';
 
 export function reviewAccess(claim: Pick<ClaimSummary, 'status' | 'assignedStaffId'>, staffId: number): ReviewAccess {
   switch (claim.status) {
@@ -29,6 +38,9 @@ export function reviewAccess(claim: Pick<ClaimSummary, 'status' | 'assignedStaff
       return claim.assignedStaffId === staffId ? 'decide' : 'held-by-other';
     case 'MORE_INFO_REQUIRED':
       return 'awaiting-claimant';
+    case 'APPROVED':
+    case 'REJECTED':
+      return claim.assignedStaffId === staffId ? 'settle' : 'awaiting-settlement';
     default:
       return 'closed';
   }

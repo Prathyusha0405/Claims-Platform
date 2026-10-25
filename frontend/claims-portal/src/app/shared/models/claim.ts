@@ -79,7 +79,8 @@ export type ClaimEventType =
   | 'CLAIM_APPROVED'
   | 'CLAIM_REJECTED'
   | 'ADDITIONAL_INFO_REQUESTED'
-  | 'ADDITIONAL_INFO_RECEIVED';
+  | 'ADDITIONAL_INFO_RECEIVED'
+  | 'CLAIM_SETTLED';
 
 export const CLAIM_EVENT_LABELS: Readonly<Record<ClaimEventType, string>> = {
   CLAIM_CREATED: 'Claim submitted',
@@ -88,6 +89,7 @@ export const CLAIM_EVENT_LABELS: Readonly<Record<ClaimEventType, string>> = {
   CLAIM_REJECTED: 'Claim rejected',
   ADDITIONAL_INFO_REQUESTED: 'More information requested',
   ADDITIONAL_INFO_RECEIVED: 'Information provided',
+  CLAIM_SETTLED: 'Claim settled',
 };
 
 /** Material Icons ligature that stands for each event. */
@@ -98,6 +100,7 @@ export const CLAIM_EVENT_ICONS: Readonly<Record<ClaimEventType, string>> = {
   CLAIM_REJECTED: 'cancel',
   ADDITIONAL_INFO_REQUESTED: 'help_outline',
   ADDITIONAL_INFO_RECEIVED: 'mark_email_read',
+  CLAIM_SETTLED: 'task_alt',
 };
 
 /** One row of a claim list (my claims, search results, the work queue). */

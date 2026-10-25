@@ -44,11 +44,17 @@ puts a reverse proxy with the same routing in front of the built files.
 | Command | What it does |
 |---|---|
 | `npm start` | Dev server on port 4200 with the API proxy |
-| `npm run build` | Production build into `dist/` (initial bundle 501.15 kB, 126.5 kB transferred, measured 2026-10-23) |
+| `npm run build` | Production build into `dist/` (initial bundle 501.25 kB, 126.5 kB transferred, measured 2026-10-25) |
 | `npm run watch` | Development build that rebuilds on change |
-| `npm test` / `npx ng test --watch=false` | Unit tests, 367 tests in 28 files (Vitest, jsdom) |
+| `npm test` / `npx ng test --watch=false` | Unit tests, 384 tests in 30 files (Vitest, jsdom) |
 
 On a OneDrive folder `ng build` and `ng test` can take one to three minutes.
+
+Run only one dev server from this folder. A second `ng serve` shares `.angular/cache` with the first and can rewrite its
+dependency files underneath it; the first then serves two copies of Angular and everything lazy-loaded that opens an overlay
+(the claims staff decision dialogs) fails with `NG0201: No provider found for RendererFactory2`. If it happens, stop the dev
+server, delete `.angular/cache`, start it again and hard-refresh. A second server belongs on a copy of the folder
+(`node scripts/dev.mjs --frontend-dir <copy>`).
 
 ## Pages and routes
 
@@ -63,7 +69,7 @@ Every page is a lazy route, so a claimant never downloads claims staff or manage
 | `/claimant/claims/:claimNumber` | Claim details, progress, timeline, reply to an information request | CLAIMANT |
 | `/claimant/notifications`, `/staff/notifications` | Notification inbox (one shared page) | CLAIMANT, CLAIMS_STAFF |
 | `/staff/work-queue` | Unassigned queue (filterable by market) and "my assigned claims" | CLAIMS_STAFF |
-| `/staff/claims/:claimNumber` | Claim review: take, note, request information, approve, reject | CLAIMS_STAFF |
+| `/staff/claims/:claimNumber` | Claim review: take, note, request information, approve, reject, settle | CLAIMS_STAFF |
 | `/manager/dashboard` | A filter row (market, period, claim type), status totals, liability exposure, and charts of claims over time, by market, by claim type and per claims staff member, with the By market and workload tables (own currency and USD) | MANAGER |
 | `/forbidden`, anything else | Wrong area for your role, not found | any |
 
@@ -108,7 +114,7 @@ a page two roles need (notifications) lives in `shared`.
   superseded request (a slow reply cannot overwrite a newer one), keeps the previous value while the next loads, and
   exposes `value`, `loading` and `error` signals.
 * **What the user may do.** `reviewAccess()` maps claim status and assignee to the claims staff actions offered (take, decide,
-  held by someone else, awaiting claimant, closed). It only hides buttons; the backend authorizes every call again.
+  held by someone else, awaiting claimant, settle, awaiting settlement, closed). It only hides buttons; the backend authorizes every call again.
 * **Dashboards** use three in-house chart components (`bar-chart`, `stacked-bar-chart`, `column-chart`), each with a legend for
   two or more series, a tooltip on hover and keyboard focus, and a "View as table" twin. One filter row above the page
   (market, period, claim type, and two dates for a custom period; "Clear filters" appears when something is set) re-queries all four
@@ -123,16 +129,20 @@ a page two roles need (notifications) lives in `shared`.
 * **Forms.** Forms with a `FormGroup` use `(ngSubmit)`. A form that only holds a standalone `[formControl]` has no
   `NgForm` to emit `ngSubmit`, so it uses `(submit)="$event.preventDefault(); handler()"` instead; otherwise the browser
   does a native submit and reloads the page.
+* **Dialogs.** `promptForText` answers the entered text, or `undefined` when the user cancels. The Cancel button is bound as
+  `[mat-dialog-close]="undefined"` on purpose: a bare `mat-dialog-close` attribute closes with `''`, which reads as "confirmed
+  with no comment" and would approve or settle the claim. In specs, set `MATERIAL_ANIMATIONS` to `{ animationsDisabled: true }`,
+  or a dialog never reports that it closed (jsdom does not finish CSS animations).
 
 ## Testing
 
-`npx ng test --watch=false` runs 367 tests: guards, interceptors, stores, API clients, the route table, the auth and
-claimant pages, the notification bell (its ten-second refresh), the work queue's market filter, the manager dashboard with its filter row and its three chart components, the money formatter, and the utilities. Coverage was 69.7% of lines overall before the market, currency and dashboard work (not re-measured). The claim-review and
-my-assigned-claims pages have no component specs; they were checked by walking the running app in a browser. The figures,
+`npx ng test --watch=false` runs 384 tests: guards, interceptors, stores, API clients, the route table, the auth and
+claimant pages, the notification bell (its ten-second refresh), the work queue's market filter, the claim review page (including settling), the shared prompt dialog, the manager dashboard with its filter row and its three chart components, the money formatter, and the utilities. Coverage was 69.7% of lines overall before the market, currency and dashboard work (not re-measured). The my-assigned-claims
+page has no component spec; it was checked by walking the running app in a browser. The figures,
 how they were measured and the exact commands are in the [root README](../../README.md#tests).
 
 ## Known gaps
 
-* No component specs for the claim-review and my-assigned-claims pages (above).
-* The production bundle is 1.15 kB over the 500 kB *warning* budget (the error budget is 1 MB).
+* No component spec for the my-assigned-claims page (above).
+* The production bundle is 1.25 kB over the 500 kB *warning* budget (the error budget is 1 MB).
 * An assignee shows as "Staff #n": there is no staff directory to look a name up in.

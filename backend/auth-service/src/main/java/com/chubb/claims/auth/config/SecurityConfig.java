@@ -47,6 +47,7 @@ public class SecurityConfig {
                                 paths.matcher("/swagger-ui.html"),
                                 paths.matcher("/v3/api-docs/**"),
                                 paths.matcher("/h2-console/**"),
+                                paths.matcher("/actuator/health/**"),
                                 paths.matcher("/error")).permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class);

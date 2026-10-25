@@ -48,6 +48,7 @@ public class SecurityConfig {
                                 paths.matcher("/swagger-ui.html"),
                                 paths.matcher("/v3/api-docs/**"),
                                 paths.matcher("/h2-console/**"),
+                                paths.matcher("/actuator/health/**"),
                                 paths.matcher("/error")).permitAll()
                         .requestMatchers(paths.matcher("/api/staff/**")).hasRole(CLAIMS_STAFF)
                         .requestMatchers(paths.matcher("/api/dashboard/**")).hasRole(MANAGER)

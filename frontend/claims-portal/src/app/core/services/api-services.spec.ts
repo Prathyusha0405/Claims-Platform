@@ -124,6 +124,19 @@ describe('backend API services', () => {
       expect(answer('/api/staff/claims/7/approve', 'POST').request.body).toEqual({});
     });
 
+    it('settles with a trimmed comment, or with none at all', () => {
+      const api = TestBed.inject(StaffApi);
+
+      api.settle(7, '  Paid by bank transfer  ').subscribe();
+      expect(answer('/api/staff/claims/7/settle', 'POST').request.body).toEqual({ comment: 'Paid by bank transfer' });
+
+      api.settle(7, '   ').subscribe();
+      expect(answer('/api/staff/claims/7/settle', 'POST').request.body).toEqual({});
+
+      api.settle(7).subscribe();
+      expect(answer('/api/staff/claims/7/settle', 'POST').request.body).toEqual({});
+    });
+
     it('rejects with a reason and asks for information with a message', () => {
       const api = TestBed.inject(StaffApi);
 

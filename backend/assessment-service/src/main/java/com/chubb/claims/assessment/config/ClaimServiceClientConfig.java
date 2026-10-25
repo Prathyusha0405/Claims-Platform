@@ -2,6 +2,7 @@ package com.chubb.claims.assessment.config;
 
 import com.chubb.claims.assessment.client.BearerTokenForwardingInterceptor;
 import com.chubb.claims.assessment.client.ClaimServiceProperties;
+import com.chubb.claims.assessment.client.RequestIdForwardingInterceptor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -25,6 +26,7 @@ public class ClaimServiceClientConfig {
                 .baseUrl(properties.baseUrl())
                 .requestFactory(requestFactory)
                 .requestInterceptor(new BearerTokenForwardingInterceptor())
+                .requestInterceptor(new RequestIdForwardingInterceptor())
                 .build();
     }
 }

@@ -79,6 +79,22 @@ class RestClaimServiceClientTest {
     }
 
     @Test
+    void passesOnTheIdOfTheRequestBeingServedAndSendsNoneOutsideARequest() {
+        stub.on("GET", "/api/internal/claims/10", 200, ClaimJson.claim(10, "SUBMITTED", null));
+
+        org.slf4j.MDC.put("requestId", "trace-7");
+        try {
+            client.getClaim(10L);
+        } finally {
+            org.slf4j.MDC.clear();
+        }
+        assertThat(stub.lastRequest().header("x-request-id")).isEqualTo("trace-7");
+
+        client.getClaim(10L);
+        assertThat(stub.lastRequest().header("x-request-id")).isNull();
+    }
+
+    @Test
     void sendsNoCredentialsWhenThereIsNoAuthenticatedCaller() {
         SecurityContextHolder.clearContext();
         stub.on("GET", "/api/internal/claims/10", 200, ClaimJson.claim(10, "SUBMITTED", null));

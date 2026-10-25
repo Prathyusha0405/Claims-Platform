@@ -31,6 +31,7 @@ export const API = {
     assign: (id: number) => `/api/staff/claims/${id}/assign`,
     approve: (id: number) => `/api/staff/claims/${id}/approve`,
     reject: (id: number) => `/api/staff/claims/${id}/reject`,
+    settle: (id: number) => `/api/staff/claims/${id}/settle`,
     requestInfo: (id: number) => `/api/staff/claims/${id}/request-info`,
     notes: (id: number) => `/api/staff/claims/${id}/notes`,
   },

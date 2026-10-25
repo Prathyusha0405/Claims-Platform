@@ -29,7 +29,7 @@ const COMMENT_LIMIT = 2000;
 
 /**
  * A claims staff member's view of one claim: the claim and its history, what this staff member may do with it (take it, approve,
- * reject, ask for information), and the internal notes. Which buttons appear follows the lifecycle rules in
+ * reject, ask for information, settle it once decided), and the internal notes. Which buttons appear follows the lifecycle rules in
  * `reviewAccess`; the backend enforces the same rules, so a stale page can at worst get a polite 409.
  */
 @Component({
@@ -133,6 +133,22 @@ export class ClaimReview {
       },
       (reason) => this.staffApi.reject(id, reason),
       `${claimNumber} rejected.`,
+    );
+  }
+
+  protected settle(id: number, claimNumber: string): void {
+    this.decide(
+      {
+        title: `Settle ${claimNumber}`,
+        description:
+          'Settling closes the claim: the claimant is notified and it stops counting towards liability exposure. Add a comment for the record if you wish.',
+        label: 'Comment (optional)',
+        confirmLabel: 'Settle claim',
+        required: false,
+        maxLength: COMMENT_LIMIT,
+      },
+      (comment) => this.staffApi.settle(id, comment),
+      `${claimNumber} settled.`,
     );
   }
 

@@ -20,9 +20,12 @@ describe('reviewAccess', () => {
     ['UNDER_REVIEW', 9, 'held-by-other'],
     ['MORE_INFO_REQUIRED', ME, 'awaiting-claimant'],
     ['MORE_INFO_REQUIRED', 9, 'awaiting-claimant'],
-    ['APPROVED', ME, 'closed'],
-    ['REJECTED', ME, 'closed'],
+    ['APPROVED', ME, 'settle'],
+    ['REJECTED', ME, 'settle'],
+    ['APPROVED', 9, 'awaiting-settlement'],
+    ['REJECTED', 9, 'awaiting-settlement'],
     ['SETTLED', ME, 'closed'],
+    ['SETTLED', 9, 'closed'],
   ])('%s held by %s → %s', (status, assignedStaffId, expected) => {
     expect(reviewAccess({ status, assignedStaffId }, ME)).toBe(expected);
   });

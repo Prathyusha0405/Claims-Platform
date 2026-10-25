@@ -71,6 +71,24 @@
           }
           <p class="muted">The claim returns to review as soon as they answer, and the staff member holding it is notified.</p>
         }
+        @case ('settle') {
+          <p>
+            You hold this claim and it is <strong>{{ statusLabels[detail.status] }}</strong>. Settle it once the outcome has been
+            carried out: the claim is closed, the claimant is told, and it stops counting towards liability exposure.
+          </p>
+          <div class="form-actions">
+            <button mat-flat-button type="button" [disabled]="acting()" (click)="settle(detail.id, detail.claimNumber)">
+              <mat-icon aria-hidden="true">task_alt</mat-icon>
+              Settle claim
+            </button>
+          </div>
+        }
+        @case ('awaiting-settlement') {
+          <p>
+            This claim is <strong>{{ statusLabels[detail.status] }}</strong> and is held by staff member #{{ detail.assignedStaffId }}.
+            Only they can settle it, but you can read it and add notes.
+          </p>
+        }
         @default {
           <p>
             This claim is <strong>{{ statusLabels[detail.status] }}</strong>, so no further decision can be made. You can
