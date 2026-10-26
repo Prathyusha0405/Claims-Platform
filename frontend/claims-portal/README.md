@@ -11,7 +11,7 @@ logins, endpoints, tests) and [architecture.md](../../architecture.md) (design a
 Angular 22 (standalone components, no NgModules), Angular Material 3, reactive forms, signals for state, RxJS 7.8,
 TypeScript 6, Vitest + jsdom for unit tests. No state library and no charting library.
 
-> `CLAUDE.md` asks for Angular 19; the project was scaffolded with Angular 22 (see
+> `../../docs/CLAUDE.md` asks for Angular 19; the project was scaffolded with Angular 22 (see
 > [architecture.md, section 14](../../architecture.md#14-decisions-and-trade-offs)).
 
 ## Run it

@@ -59,7 +59,7 @@ USE
 
 Docker and Kafka were on the original "do not use" list and were added later at the owner's request. They are optional:
 
-- Docker is for packaging and running only (a Dockerfile per part and one `docker-compose.yml`). The databases stay in-memory H2. Nothing in the code needs Docker; `node scripts/dev.mjs` still starts everything without it.
+- Docker is for packaging and running only (a Dockerfile per part and one `../docker-compose.yml`). The databases stay in-memory H2. Nothing in the code needs Docker; `node scripts/dev.mjs` still starts everything without it.
 - Kafka is opt-in (`app.events.publisher=kafka`). The default is still `LocalClaimEventPublisher`, so the services and their tests need no broker.
 
 ---
@@ -492,8 +492,8 @@ Request tracing
 Running
 
 - `node scripts/dev.mjs` starts the three services and the Angular dev server together.
-- `docker compose up --build` starts a single-node Kafka broker, the three services (claim-service with `EVENTS_PUBLISHER=kafka`) and the Angular app behind nginx on http://localhost:4200. `backend/Dockerfile` builds any one service (`--build-arg SERVICE=<module>`); `frontend/claims-portal/Dockerfile` builds the app.
-- `.github/workflows/ci.yml` builds and tests the backend and the frontend.
+- `docker compose up --build` starts a single-node Kafka broker, the three services (claim-service with `EVENTS_PUBLISHER=kafka`) and the Angular app behind nginx on http://localhost:4200. `../backend/Dockerfile` builds any one service (`--build-arg SERVICE=<module>`); `frontend/claims-portal/Dockerfile` builds the app.
+- `../.github/workflows/ci.yml` builds and tests the backend and the frontend.
 
 ---
 
@@ -505,7 +505,7 @@ The code goes beyond the first version of this file in these places.
 |---|---|---|
 | Java | 21 | 27 |
 | Angular | 19 | 22 |
-| Docker | not to be used | optional: Dockerfiles and `docker-compose.yml` |
+| Docker | not to be used | optional: Dockerfiles and `../docker-compose.yml` |
 | Kafka | not to be used; `KafkaEventPublisher` as a future step | `KafkaClaimEventPublisher`, opt-in, with an outbox, a relay and a listener |
 | Event publisher | `LocalEventPublisher` | `LocalClaimEventPublisher` |
 | Events | five | plus `ADDITIONAL_INFO_RECEIVED` and `CLAIM_SETTLED` |

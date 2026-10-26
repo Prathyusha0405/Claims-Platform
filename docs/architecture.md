@@ -1,6 +1,6 @@
 # Architecture
 
-How the Chubb APAC Claims Management Platform is put together, and why. For how to run it, see [README.md](README.md).
+How the Chubb APAC Claims Management Platform is put together, and why. For how to run it, see [README.md](../README.md).
 
 ## 1. Goals and constraints
 
@@ -93,7 +93,7 @@ flowchart LR
 ```
 
 The browser only ever talks to one origin. In development the Angular dev server's proxy
-(`frontend/claims-portal/proxy.conf.json`) routes each `/api/...` prefix to the right service, so the app contains no
+(`../frontend/claims-portal/proxy.conf.json`) routes each `/api/...` prefix to the right service, so the app contains no
 host names and **no CORS configuration is needed**. In Docker, nginx plays the same role with the same routes
 (`frontend/claims-portal/nginx.conf`); any other deployment would put a reverse proxy there.
 
@@ -101,7 +101,7 @@ Services never read each other's databases. The only service-to-service call is 
 
 | Process | Port | Started with |
 |---|---|---|
-| Angular dev server (with the `/api` proxy) | 4200 | `npm start` in `frontend/claims-portal` |
+| Angular dev server (with the `/api` proxy) | 4200 | `npm start` in `../frontend/claims-portal` |
 | auth-service | 8084 | `mvnw -pl auth-service spring-boot:run` (or its `*Application` class from an IDE) |
 | claim-service | 8082 | `mvnw -pl claim-service spring-boot:run` |
 | assessment-service | 8083 | `mvnw -pl assessment-service spring-boot:run` |
@@ -113,7 +113,7 @@ and can be overridden with the standard `SERVER_PORT` environment variable; if y
 
 ### Running in Docker
 
-`docker-compose.yml` runs the same system as five containers. Nothing about the services changes: the compose file only sets
+`../docker-compose.yml` runs the same system as five containers. Nothing about the services changes: the compose file only sets
 the environment variables each already reads (`JWT_SECRET`, `CLAIM_SERVICE_URL`, `EVENTS_PUBLISHER`,
 `KAFKA_BOOTSTRAP_SERVERS`).
 
@@ -129,8 +129,8 @@ flowchart LR
 
 | Part | Image built from | Notes |
 |---|---|---|
-| auth-service, claim-service, assessment-service | one `backend/Dockerfile`, chosen with `--build-arg SERVICE=<module>` | Two stages: a JDK builds only that module and its parent pom (tests skipped, they belong to `mvnw verify` and CI); a JRE image runs the one jar as a non-root user |
-| frontend | `frontend/claims-portal/Dockerfile` | Two stages: Node builds the production bundle; nginx serves it, falls back to `index.html` for the app's own routes and forwards each `/api/...` prefix to its service, with an `X-Request-Id` per request |
+| auth-service, claim-service, assessment-service | one `../backend/Dockerfile`, chosen with `--build-arg SERVICE=<module>` | Two stages: a JDK builds only that module and its parent pom (tests skipped, they belong to `mvnw verify` and CI); a JRE image runs the one jar as a non-root user |
+| frontend | `../frontend/claims-portal/Dockerfile` | Two stages: Node builds the production bundle; nginx serves it, falls back to `index.html` for the app's own routes and forwards each `/api/...` prefix to its service, with an `X-Request-Id` per request |
 | kafka | the `apache/kafka` image | One node that is both broker and controller (KRaft, so no ZooKeeper), plaintext, no volume |
 
 Start-up is ordered by health, not by guesswork: each service container's health check calls its own
@@ -355,7 +355,7 @@ timeline on the claim page, the notification badge and the new-claim alerts to c
 consistency, the price of decoupling, and it is why `local` stays the default.
 
 **What is not done.** One relay instance is assumed (two would not lose events but could send some twice, which the listener
-tolerates). The broker in `docker-compose.yml` is one node with replication factor 1, plaintext and no volume; a real
+tolerates). The broker in `../docker-compose.yml` is one node with replication factor 1, plaintext and no volume; a real
 deployment would need a cluster, TLS and SASL, retention settings and a way to replay the dead-letter topic. Two events of the
 same type by the same actor on the same claim in the same nanosecond would share an id; nothing in the lifecycle can do that.
 
@@ -643,12 +643,12 @@ three forms whose submit never fired (section 14), but that walkthrough script i
 | Relative `/api` URLs + dev proxy | No CORS, no host names in the app | Anything but the dev server needs a reverse proxy doing the same routing (in Docker, nginx does) |
 | Dashboards computed live | Always consistent with claims | Each refresh costs aggregate queries; fine at this scale |
 | `LocalClaimEventPublisher` (CLAUDE.md says `LocalEventPublisher`) | Name chosen by the project owner | None |
-| Kafka is **opt-in** (`app.events.publisher=kafka`); `local` stays the default | The brief ruled Kafka out and it was later asked for as an option. With the default, nothing needs a broker (the other tests, `scripts/dev.mjs`, an IDE run) and the audit row stays atomic with the claim | Two modes to keep working, and Kafka mode is eventually consistent (section 7) |
+| Kafka is **opt-in** (`app.events.publisher=kafka`); `local` stays the default | The brief ruled Kafka out and it was later asked for as an option. With the default, nothing needs a broker (the other tests, `../scripts/dev.mjs`, an IDE run) and the audit row stays atomic with the claim | Two modes to keep working, and Kafka mode is eventually consistent (section 7) |
 | A **transactional outbox**, not a send inside the request | A broker send cannot be atomic with a database transaction; the outbox makes "the claim changed" and "the event exists" one fact, and a broker outage cannot block or lose a claim change | An extra table, a relay, and up to the relay's delay before an event leaves |
 | An event id **computed from the event** (`ClaimEvent.id()`), not stored on it | At-least-once delivery needs a way to recognise a duplicate; computing it left `ClaimEvent`, and the two tests that compare events by value, untouched | Two identical events in the same nanosecond would count as one |
 | The listener and handler live **inside claim-service** | The topic decouples the write path from the audit and notification work without adding a fifth service, and another consumer can subscribe later | Claim-service is both producer and consumer of its own topic |
 | `claim_event_outbox` and `claim_history.event_id` went into **`V1`**, not a `V3` | `FLYWAY_TARGET=1` ("schema only") has to give a working empty platform | Same in-memory-only caveat as the other in-place edits |
-| **One `backend/Dockerfile`** for the three services, picked with `--build-arg SERVICE` | The three builds differ only in the module name, so a single file cannot drift from itself | A change only one service needs must be a build argument or a new file |
+| **One `../backend/Dockerfile`** for the three services, picked with `--build-arg SERVICE` | The three builds differ only in the module name, so a single file cannot drift from itself | A change only one service needs must be a build argument or a new file |
 | nginx names the services in **variables** with Docker's DNS (`resolver 127.0.0.11`) | nginx starts even if a service is not up yet (502 until it is) instead of refusing to start | A little less obvious than a plain `proxy_pass` |
 | Compose orders start-up by **health checks**, not just `depends_on` | A service started before its dependency fails its first requests | Slower to show "healthy" (a 40 s start period); readiness is the probe, so a service that is up but not ready is not counted |
 | Extra event `ADDITIONAL_INFO_RECEIVED`, extra notification endpoints, `GET …/notes` | The UI needs them and the brief did not list them | CLAUDE.md's endpoint list is now incomplete |
@@ -668,7 +668,7 @@ three forms whose submit never fired (section 14), but that walkthrough script i
 | The prompt dialog's **Cancel closes with `undefined`** (`[mat-dialog-close]="undefined"`) | A bare `mat-dialog-close` attribute closes with `''`, which `promptForText` could not tell from "confirmed with nothing typed": Cancel on an optional prompt went on to approve (or settle) the claim | Any new dialog button that means "no" must close with `undefined` |
 | **Readiness depends on claim-service, liveness does not** | Without claim-service, assessment-service can do nothing useful and should be taken out of rotation, but restarting it would not help | A probe on `/actuator/health` (which includes readiness) sees assessment-service go `DOWN` with claim-service, so use the liveness probe for restarts |
 | A **request id** in a filter, the log pattern and the call to claim-service, not a tracing system | One id on every log line of one staff action is enough to follow it through two services at this size, with no new infrastructure | Plain text logs only: no timings, no tree of calls |
-| The one-command start is a **Node script** (`scripts/dev.mjs`) | Node is already needed for the front end, it needs no Docker (which was ruled out when it was written), and a script can wait on the health endpoints and stop everything on Ctrl+C | Run on Windows only; the macOS and Linux branches are untried. `docker compose up --build` is the other way to start everything |
+| The one-command start is a **Node script** (`../scripts/dev.mjs`) | Node is already needed for the front end, it needs no Docker (which was ruled out when it was written), and a script can wait on the health endpoints and stop everything on Ctrl+C | Run on Windows only; the macOS and Linux branches are untried. `docker compose up --build` is the other way to start everything |
 | `(submit)` + `preventDefault` on forms without a `FormGroup` | `(ngSubmit)` only fires from `NgForm`/`FormGroupDirective`; three forms had neither and silently did a native submit | Forms with a `FormGroup` still use `(ngSubmit)` |
 
 ## 15. Known gaps and next steps
@@ -688,7 +688,7 @@ three forms whose submit never fired (section 14), but that walkthrough script i
   new-claim alerts go to the staff found in its claim history (`HistoryClaimsStaffDirectory`); an account that has never
   taken a claim is not alerted until it does (section 7).
 * **Kafka mode is a first version** (section 7). It assumes one relay instance; nothing replays the dead-letter topic; the broker
-  in `docker-compose.yml` is one plaintext node with replication factor 1 and no volume; the audit trail and notifications lag a
+  in `../docker-compose.yml` is one plaintext node with replication factor 1 and no volume; the audit trail and notifications lag a
   claim change by about a second. A *frozen* broker was exercised live and a *killed* one was not (the relay's handling of a
   failed send is unit-tested). Next steps would be a typed event contract (a schema registry, or at least a versioned JSON
   schema), a way to replay the dead-letter topic, and a second consumer (a notification service, say) to show the decoupling
@@ -705,5 +705,5 @@ three forms whose submit never fired (section 14), but that walkthrough script i
   JWT with one minted a moment later, which differ when the clock ticks over a second between them (a test defect, not a
   service defect; details in the README). Not fixed.
 * Initial bundle is 501.25 kB, 1.25 kB over the 500 kB *warning* budget (the error budget is 1 MB; it transfers 126.5 kB).
-* **CI is written but has not run** (`.github/workflows/ci.yml`; it needs a JDK 27 on the runner), and the start script has been
+* **CI is written but has not run** (`../.github/workflows/ci.yml`; it needs a JDK 27 on the runner), and the start script has been
   run on Windows only. There are no metrics or traces: health endpoints and a request id are the whole of the operating story.

@@ -1,0 +1,5 @@
+# Keep the build context small and the build independent of whatever is on the developer's machine.
+**/target
+.idea
+**/*.iml
+**/*.log

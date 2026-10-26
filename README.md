@@ -17,7 +17,7 @@ A claims management platform assessment for **Chubb APAC**: three Spring Boot mi
 ![Frontend tests](https://img.shields.io/badge/Frontend_tests-384_passed-2EA44F?style=flat-square)
 ![Last verified](https://img.shields.io/badge/Last_verified-2026--10--26-blue?style=flat-square)
 
-[Quick start](#quick-start) · [Build & test](#tests) · [Requirements](#requirements-coverage) · [Architecture](architecture.md) 
+[Quick start](#quick-start) · [Build & test](#tests) · [Requirements](#requirements-coverage) · [Architecture](docs/architecture.md) 
 
 </div>
 
@@ -60,6 +60,17 @@ Chubb APAC processes motor and property claims across six markets. The scenario 
 | **Claimants** | Submit by phone or email, then wait with no visibility | Self-service portal: file a claim online, follow it on a progress tracker and a timeline, get an in-app notification at every step, and answer a claims staff member's request for information in the same place ([claimant screens](#a-tour-of-the-app)) |
 | **Claims staff** | Work from shared inboxes and spreadsheets, with no consolidated view of their workload | One work queue of submitted claims nobody holds (oldest first), *Take claim* in one click, a tab for the claims they hold, search by claim number, policy number, status, market, date range and claims staff member, internal notes, an in-app alert whenever a new claim is waiting in the queue, and an audit trail on every claim |
 | **Managers** | No real-time picture of outstanding claims or liability exposure | Manager dashboard, computed live on every request: totals by status, pending, liability exposure (`SUM(claimAmount) WHERE status != SETTLED`), claims and value by status, each market side by side in its own currency and in USD, and per-claims staff workload, with charts for claims over time, each market, each claim type and each staff member; every figure and chart can be narrowed by market, claim type and submission dates |
+
+Every claim is filed under one of six claim types (the `ClaimType` enum, the same in claim-service and assessment-service):
+
+| Claim type | Covers |
+|---|---|
+| `AUTO` | Motor vehicle insurance claims |
+| `HOME` | Property and home insurance claims |
+| `HEALTH` | Health insurance claims |
+| `TRAVEL` | Travel insurance claims |
+| `PERSONAL_ACCIDENT` | Personal accident claims |
+| `OTHER` | Other insurance claims |
 
 How far the demo goes toward the scenario, stated plainly:
 
@@ -247,7 +258,7 @@ Screenshots of the running app on the seed data (development build, 1440 × 900)
 
 ## Requirements coverage
 
-How the brief in [CLAUDE.md](CLAUDE.md) maps to the code. "Done" marks a feature you can point to in the code. "Verified" marks the two rules in the brief that say what the code must *not* or must *always* do: there is no single place to point to, so they were checked by searching every service's source and `pom.xml`, and the notes say what that search found.
+How the brief in [CLAUDE.md](docs/CLAUDE.md) maps to the code. "Done" marks a feature you can point to in the code. "Verified" marks the two rules in the brief that say what the code must *not* or must *always* do: there is no single place to point to, so they were checked by searching every service's source and `pom.xml`, and the notes say what that search found.
 
 | Requirement | Status | Where / notes |
 |---|---|---|
@@ -264,7 +275,7 @@ How the brief in [CLAUDE.md](CLAUDE.md) maps to the code. "Done" marks a feature
 | Claim lifecycle, only valid transitions | Done | transition table in `ClaimStatus`; the whole path to `SETTLED` can be driven through the API and the app |
 | Event publisher pattern | Done | `ClaimEventPublisher` with `LocalClaimEventPublisher` (the default) and `KafkaClaimEventPublisher`, both ending in `ClaimEventHandler` (log, audit history, notifications); the brief's events plus `ADDITIONAL_INFO_RECEIVED` and `CLAIM_SETTLED`. The brief's "future `KafkaEventPublisher`, no service layer changes" is done: `ClaimService` was not touched |
 | Dashboard: totals, pending, approved, rejected, claims staff workload, liability exposure | Done, by market and in USD | exposure is `SUM(claimAmount) WHERE status != SETTLED` converted to USD at fixed indicative rates, in one class; every dashboard takes an optional `market`, `claimType`, `fromDate` and `toDate`, and `byMarket` shows each market in its own currency and in USD |
-| Manager visuals and filters | Done, beyond the brief | charts of claims over time, by market, by claim type and per claims staff member, each with a table view; filters for market, claim type and submission dates that every figure and chart follows ([API](#api), [architecture §9](architecture.md#9-dashboards)) |
+| Manager visuals and filters | Done, beyond the brief | charts of claims over time, by market, by claim type and per claims staff member, each with a table view; filters for market, claim type and submission dates that every figure and chart follows ([API](#api), [architecture §9](docs/architecture.md#9-dashboards)) |
 | Business context: six markets, each in its own currency | Done | a `market` and a `currency` on every claim; market filter on search, the work queue and the dashboards ([business context](#business-context)) |
 | Search by claim number, policy number, status, date range, assigned staff member; paging and sorting | Done, plus market | `GET /api/claims/search`; the work queue also filters by market |
 | Tests: service, controller, security, dashboard (JUnit 5, Mockito, MockMvc) | Done | 669 backend tests, plus 384 front-end tests ([results](#tests)) |
@@ -517,10 +528,10 @@ README.md · architecture.md · AI_WORKING_JOURNAL.md
 | Document | Read it for |
 |---|---|
 | [README.md](README.md) (this file) | Running the platform, demo logins, what is covered, test results, limitations |
-| [architecture.md](architecture.md) | Design: service boundaries, request flow, lifecycle, security, event pattern, data model, dashboards, front end, decisions and trade-offs, assumptions, known gaps |
+| [architecture.md](docs/architecture.md) | Design: service boundaries, request flow, lifecycle, security, event pattern, data model, dashboards, front end, decisions and trade-offs, assumptions, known gaps |
 | [frontend/claims-portal/README.md](frontend/claims-portal/README.md) | The Angular app: scripts, routes, source layout, how it works |
-| [AI_WORKING_JOURNAL.md](AI_WORKING_JOURNAL.md) | How AI assistance was used: a dated, running record, one numbered entry per request. Each entry gives the task or prompt, what the AI recommended or did, what was accepted, what the AI challenged or corrected, manual human changes, how it was validated (and what was not) and the result |
-| [CLAUDE.md](CLAUDE.md) | The original brief |
+| [AI_WORKING_JOURNAL.md](docs/AI_WORKING_JOURNAL.md) | How AI assistance was used: a dated, running record, one numbered entry per request. Each entry gives the task or prompt, what the AI recommended or did, what was accepted, what the AI challenged or corrected, manual human changes, how it was validated (and what was not) and the result |
+| [CLAUDE.md](docs/CLAUDE.md) | The original brief |
 
 ## Known limitations
 
@@ -570,7 +581,7 @@ README.md · architecture.md · AI_WORKING_JOURNAL.md
   about a second instead of arriving with it. It assumes one relay instance (two would not lose events but could send some
   twice, which the listener ignores), nothing replays the dead-letter topic `claim-events.DLT`, and the broker in
   `docker-compose.yml` is one plaintext node with replication factor 1 and no volume. Details and the failure behaviour are in
-  [Events](#events-in-process-or-kafka) and [architecture.md](architecture.md#7-event-publisher-pattern).
+  [Events](#events-in-process-or-kafka) and [architecture.md](docs/architecture.md#7-event-publisher-pattern).
 * **The Docker files have never been built or run** (no Docker on the machine they were written on). See [In Docker](#in-docker)
   for what was checked instead and what was not.
 * **CI is written but has not run.** `.github/workflows/ci.yml` follows the commands in this README and needs a Temurin JDK 27
@@ -581,7 +592,7 @@ README.md · architecture.md · AI_WORKING_JOURNAL.md
 * **No metrics or tracing.** The health endpoints and the request id are all there is for operating the services; logs are plain
   text.
 
-More in [architecture.md](architecture.md#15-known-gaps-and-next-steps).
+More in [architecture.md](docs/architecture.md#15-known-gaps-and-next-steps).
 
 ## Troubleshooting
 
