@@ -1,0 +1,19 @@
+# IDE and OS files
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Build output, dependencies and test reports (backend/ and frontend/claims-portal/ ignore these as well)
+target/
+node_modules/
+dist/
+coverage/
+.angular/
+
+# Local run state written by scripts/dev.mjs (service logs, the generated dev-server proxy file)
+.run/
+*.log
+
+# Local overrides for docker-compose.yml (for example JWT_SECRET); never commit a real secret
+.env

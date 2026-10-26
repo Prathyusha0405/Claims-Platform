@@ -11,7 +11,7 @@ logins, endpoints, tests) and [architecture.md](../../architecture.md) (design a
 Angular 22 (standalone components, no NgModules), Angular Material 3, reactive forms, signals for state, RxJS 7.8,
 TypeScript 6, Vitest + jsdom for unit tests. No state library and no charting library.
 
-> `CLAUDE.md` asks for Angular 19; the project was scaffolded with Angular 22 (see
+> `../../docs/CLAUDE.md` asks for Angular 19; the project was scaffolded with Angular 22 (see
 > [architecture.md, section 14](../../architecture.md#14-decisions-and-trade-offs)).
 
 ## Run it
@@ -37,7 +37,8 @@ quick-fill buttons for them in development builds. If a backend is not running, 
 "We could not load ..." with a retry button instead of breaking.
 
 Because every URL is relative there are no host names in the code and no CORS configuration anywhere. A real deployment
-puts a reverse proxy with the same routing in front of the built files.
+puts a reverse proxy with the same routing in front of the built files; the `Dockerfile` here does exactly that with nginx
+(see below).
 
 ## Scripts
 
@@ -49,6 +50,14 @@ puts a reverse proxy with the same routing in front of the built files.
 | `npm test` / `npx ng test --watch=false` | Unit tests, 384 tests in 30 files (Vitest, jsdom) |
 
 On a OneDrive folder `ng build` and `ng test` can take one to three minutes.
+
+### In a container
+
+`Dockerfile` builds the production bundle with Node 24 (`npm ci`, then `ng build`) and serves it with nginx; `nginx.conf` sends
+each `/api/...` prefix to its service by name (`auth-service:8084`, `claim-service:8082`, `assessment-service:8083`), the same
+routing as `proxy.conf.json`, adds an `X-Request-Id` to every forwarded request and falls back to `index.html` for the app's own
+routes. It is meant to be run through the `docker-compose.yml` at the repository root, which supplies those service names
+(`docker compose up --build`, then http://localhost:4200). It has not been built or run: see the main README, "In Docker".
 
 Run only one dev server from this folder. A second `ng serve` shares `.angular/cache` with the first and can rewrite its
 dependency files underneath it; the first then serves two copies of Angular and everything lazy-loaded that opens an overlay
@@ -97,6 +106,7 @@ src/app/
 src/environments/                development / production flags (demo quick-fill logins are development only)
 src/testing/                     shared test helpers
 proxy.conf.json                  dev-server routing of /api/* to the three services
+Dockerfile, nginx.conf           the production bundle served by nginx, with the same routing (see "In a container")
 ```
 
 Path aliases keep imports flat: `@core`, `@shared`, `@features`, `@env`, `@testing`. Features never import each other;

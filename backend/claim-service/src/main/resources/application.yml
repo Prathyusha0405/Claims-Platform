@@ -32,6 +32,19 @@ spring:
         # Page indexes are zero-based; clients cannot request more than max-page-size rows at once.
         # (The default page size is set per endpoint in ClaimController via @PageableDefault.)
         max-page-size: 100
+  kafka:
+    # Only used when app.events.publisher=kafka; with the default (local) the service never contacts a broker.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all          # with idempotence (the client default), a retried send cannot create a duplicate
+      properties:
+        # An unreachable broker must fail a send within seconds, not the client's defaults of one and two minutes.
+        max.block.ms: 5000
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
+    consumer:
+      group-id: claim-service
+      auto-offset-reset: earliest
 
 springdoc:
   api-docs:
@@ -47,6 +60,19 @@ app:
     # Development-only default (>= 256 bits for HS256). Override with the JWT_SECRET environment variable.
     # Must equal auth-service's secret: this service validates the tokens auth-service issues.
     secret: ${JWT_SECRET:chubb-claims-dev-only-secret-key-change-me-0123456789}
+  events:
+    # local = every claim event is handled in-process, in the claim's own transaction (audit row + notifications).
+    # kafka = the event is saved to an outbox table in that transaction, relayed to Kafka, and recorded by the consumer.
+    publisher: ${EVENTS_PUBLISHER:local}
+    kafka:
+      topic: claim-events
+      partitions: 3
+      replication-factor: 1
+      batch-size: 100
+      relay-delay-ms: 500     # pause between outbox runs
+      send-timeout: 5s        # wait for Kafka to acknowledge one event
+      retry-interval: 1s      # consumer: pause before retrying an event that could not be recorded
+      max-retries: 3          # consumer: then the event is parked on claim-events.DLT
 
 management:
   endpoints:

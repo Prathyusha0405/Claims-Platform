@@ -1,6 +1,6 @@
 # Architecture
 
-How the Chubb APAC Claims Management Platform is put together, and why. For how to run it, see [README.md](README.md).
+How the Chubb APAC Claims Management Platform is put together, and why. For how to run it, see [README.md](../README.md).
 
 ## 1. Goals and constraints
 
@@ -35,7 +35,8 @@ everything below:
 | Constraint | Consequence |
 |---|---|
 | Microservices: Auth, Claim, Assessment, plus an Angular front end | Three Spring Boot services, each with its own port and its own database |
-| H2 + Flyway only; no Postgres/MySQL, no Docker, no Kafka infrastructure | In-memory H2 per service; Flyway owns every schema; events go through an abstraction so a broker can be added later |
+| H2 + Flyway only; no Postgres/MySQL | In-memory H2 per service; Flyway owns every schema |
+| Docker and Kafka were ruled out by the brief and were added later, at the owner's request, as options | Events go through an abstraction: in-process by default, Kafka when switched on (section 7). Docker only packages and runs the platform (section 2); nothing in the code needs it |
 | No Lombok; constructor injection; Java records for DTOs | Plain Java throughout; every dependency is a `final` constructor parameter |
 | Only valid status transitions | The lifecycle is an enum with an explicit transition table (section 5) |
 | Liability exposure = `SUM(claimAmount) WHERE status != SETTLED` | One calculator class owns the rule (section 9) |
@@ -72,7 +73,7 @@ The brief leaves these open; the choices made are stated here so they can be cha
 | **Resilience** | Assessment-service bounds its calls to claim-service (2 s connect, 5 s read) and turns failures into 502/503 instead of hanging or showing stale numbers |
 | **Operability** | Public health and probe endpoints on every service (assessment-service's readiness follows claim-service, its liveness does not), a request id on every response and log line that assessment-service passes on to claim-service, and a one-command start that waits for the health checks (decisions, section 14) |
 | **Maintainability** | Same layering in every service (controller, service, repository, entity, dto); business rules in one named class each (`ClaimStatus`, `LiabilityExposureCalculator`, `PageableSanitizer`); constructor injection throughout and no field injection in production code |
-| **Testability** | 640 backend and 384 front-end tests; the event publisher (`ClaimEventPublisher`) and the claim-service client (`ClaimServiceClient`) are interfaces, and the liability calculation is a pure function |
+| **Testability** | 669 backend and 384 front-end tests; the event publisher (`ClaimEventPublisher`) and the claim-service client (`ClaimServiceClient`) are interfaces, and the liability calculation is a pure function |
 | **Performance** | Indexes follow the queries, list endpoints are paged and capped at 100 rows, sort fields are a whitelist, dashboards use `GROUP BY` aggregates rather than loading claims |
 | **Accessibility** | Material components, AA-contrast status colours, a "View as table" toggle on the dashboard charts |
 | **Extensibility** | A broker can replace the local event publisher without touching the service layer (section 7); each service can move to its own database or host, because the only things they share are the JWT secret and assessment-service's configured URL for claim-service |
@@ -92,21 +93,50 @@ flowchart LR
 ```
 
 The browser only ever talks to one origin. In development the Angular dev server's proxy
-(`frontend/claims-portal/proxy.conf.json`) routes each `/api/...` prefix to the right service, so the app contains no
-host names and **no CORS configuration is needed**. A production deployment would put a reverse proxy in the same role.
+(`../frontend/claims-portal/proxy.conf.json`) routes each `/api/...` prefix to the right service, so the app contains no
+host names and **no CORS configuration is needed**. In Docker, nginx plays the same role with the same routes
+(`frontend/claims-portal/nginx.conf`); any other deployment would put a reverse proxy there.
 
 Services never read each other's databases. The only service-to-service call is assessment-service to claim-service.
 
 | Process | Port | Started with |
 |---|---|---|
-| Angular dev server (with the `/api` proxy) | 4200 | `npm start` in `frontend/claims-portal` |
+| Angular dev server (with the `/api` proxy) | 4200 | `npm start` in `../frontend/claims-portal` |
 | auth-service | 8084 | `mvnw -pl auth-service spring-boot:run` (or its `*Application` class from an IDE) |
 | claim-service | 8082 | `mvnw -pl claim-service spring-boot:run` |
 | assessment-service | 8083 | `mvnw -pl assessment-service spring-boot:run` |
 
-Four processes, one JVM per service, no other infrastructure. Each service's port is `server.port` in its `application.yml`
+Four processes, one JVM per service, and no other infrastructure unless Kafka mode is switched on (section 7), which adds a
+broker. Each service's port is `server.port` in its `application.yml`
 and can be overridden with the standard `SERVER_PORT` environment variable; if you change one, update `proxy.conf.json`
 (and, if it is claim-service's, `CLAIM_SERVICE_URL` for assessment-service).
+
+### Running in Docker
+
+`../docker-compose.yml` runs the same system as five containers. Nothing about the services changes: the compose file only sets
+the environment variables each already reads (`JWT_SECRET`, `CLAIM_SERVICE_URL`, `EVENTS_PUBLISHER`,
+`KAFKA_BOOTSTRAP_SERVERS`).
+
+```mermaid
+flowchart LR
+    Browser["Browser"] -->|"host :4200"| Nginx["frontend<br/>nginx :80<br/>static app + /api routes"]
+    Nginx --> Auth["auth-service :8084"]
+    Nginx --> Claim["claim-service :8082"]
+    Nginx --> Assess["assessment-service :8083"]
+    Assess -->|"HTTP, caller's JWT forwarded"| Claim
+    Claim <-->|"outbox relay, listener"| Kafka["kafka :9092<br/>one node, KRaft"]
+```
+
+| Part | Image built from | Notes |
+|---|---|---|
+| auth-service, claim-service, assessment-service | one `../backend/Dockerfile`, chosen with `--build-arg SERVICE=<module>` | Two stages: a JDK builds only that module and its parent pom (tests skipped, they belong to `mvnw verify` and CI); a JRE image runs the one jar as a non-root user |
+| frontend | `../frontend/claims-portal/Dockerfile` | Two stages: Node builds the production bundle; nginx serves it, falls back to `index.html` for the app's own routes and forwards each `/api/...` prefix to its service, with an `X-Request-Id` per request |
+| kafka | the `apache/kafka` image | One node that is both broker and controller (KRaft, so no ZooKeeper), plaintext, no volume |
+
+Start-up is ordered by health, not by guesswork: each service container's health check calls its own
+`/actuator/health/readiness`; claim-service waits for a healthy broker, assessment-service for a healthy claim-service
+(its readiness already says so), and the front end for all three. The databases are in-memory H2, so a recreated container
+starts with the seed data again.
 
 ## 3. Services and the data they own
 
@@ -240,15 +270,16 @@ development.
 public interface ClaimEventPublisher { void publish(ClaimEvent event); }
 ```
 
-`ClaimService` builds a `ClaimEvent` and calls `publish`; it knows nothing else. Today the only implementation is
-`LocalClaimEventPublisher`, which does three things inside the caller's transaction:
+`ClaimService` builds a `ClaimEvent` and calls `publish`; it knows nothing else. There are two implementations, chosen with
+`app.events.publisher` (environment variable `EVENTS_PUBLISHER`): `local`, the default, and `kafka` (below). Both end in the
+same `ClaimEventHandler`, which does three things:
 
 1. logs the event,
 2. appends a row to `claim_history` (the audit trail the claimant sees as the timeline),
 3. creates the notifications decided by `ClaimNotificationFactory`.
 
-Because it joins the caller's transaction, the claim change, its audit row and its notifications commit or roll back
-together. Event types: `CLAIM_CREATED`, `CLAIM_ASSIGNED`, `CLAIM_APPROVED`, `CLAIM_REJECTED`,
+`LocalClaimEventPublisher` calls the handler in the caller's transaction, so the claim change, its audit row and its
+notifications commit or roll back together. Event types: `CLAIM_CREATED`, `CLAIM_ASSIGNED`, `CLAIM_APPROVED`, `CLAIM_REJECTED`,
 `ADDITIONAL_INFO_REQUESTED`, plus `ADDITIONAL_INFO_RECEIVED` (added so the claimant's reply is audited and the claims staff member
 can be told) and `CLAIM_SETTLED` (the last lifecycle step).
 
@@ -256,21 +287,82 @@ Who is notified: the **claimant** gets one notification per lifecycle event; **e
 new claim is submitted (it is waiting in the work queue); the **assigned staff member** also gets one when the claimant
 replies; **managers are never notified**.
 
-To address a new claim to every claims staff member, `LocalClaimEventPublisher` asks a `ClaimsStaffDirectory` for their ids,
+To address a new claim to every claims staff member, the `ClaimEventHandler` asks a `ClaimsStaffDirectory` for their ids,
 and only for `CLAIM_CREATED`. Users live in auth-service and claim-service has no directory of its own, so the one
 implementation, `HistoryClaimsStaffDirectory`, takes the claims staff to be everyone who has acted on a claim as
 `CLAIMS_STAFF` in `claim_history` (one indexed query). All five seeded staff qualify (a seed test pins this). The gap is an
 account added later, which is not alerted until it takes its first claim; a real directory (a lookup against auth-service)
 would replace that one class and nothing else.
 
-A `KafkaEventPublisher` would be a second `ClaimEventPublisher` bean and no service-layer change. The one thing to design
-at that point is the transaction boundary: the local publisher is atomic with the claim update, a broker publisher
-would need an outbox or similar to keep the same guarantee.
+### Kafka mode
+
+With `app.events.publisher=kafka`, `KafkaClaimEventPublisher` replaces the local one. It was added with **no change to
+`ClaimService`**, which is what the abstraction was for. The one thing that had to be designed was the transaction boundary:
+the local publisher is atomic with the claim update, and sending to a broker from inside a transaction is not (the claim could
+commit and the send fail, or the send succeed and the transaction roll back). So the publisher never talks to Kafka itself; it
+uses a **transactional outbox**:
+
+```mermaid
+sequenceDiagram
+    participant S as ClaimService
+    participant P as KafkaClaimEventPublisher
+    participant DB as claimdb
+    participant R as ClaimEventOutboxRelay
+    participant K as Kafka, topic claim-events
+    participant L as ClaimEventKafkaListener
+    participant H as ClaimEventHandler
+
+    Note over S,DB: one transaction
+    S->>DB: update the claim
+    S->>P: publish(event)
+    P->>DB: insert into claim_event_outbox
+    S-->>S: commit, the request returns
+    loop every 500 ms
+        R->>DB: read the oldest 100 outbox rows
+        R->>K: send, key = claim id, wait for the acknowledgement
+        R->>DB: delete the rows that were acknowledged
+    end
+    K->>L: message
+    L->>H: applyOnce(event)
+    H->>DB: skip if event_id is known, else claim_history row and notifications
+```
+
+| Piece | What it does |
+|---|---|
+| `KafkaClaimEventPublisher` | Saves the event as JSON in `claim_event_outbox`, in the caller's transaction. It requires one (`Propagation.MANDATORY`): an event staged outside the claim's own transaction would defeat the outbox. A rollback discards the claim change and its event together |
+| `ClaimEventOutboxRelay` | A scheduled job (`@Scheduled`, every 500 ms). Sends the oldest rows to `claim-events`, **keyed by claim id** so one claim's events stay in order, waits for Kafka to acknowledge each, then deletes them. It stops at the first failure so nothing is sent out of order. No database transaction is held open while it waits for the broker |
+| `ClaimEventKafkaListener` | Reads each message, parses it and calls `ClaimEventHandler.applyOnce`. A duplicate is ignored |
+| `ClaimEventHandler` | The same class the local publisher uses: log, audit row, notifications. `applyOnce` first asks whether `claim_history` already has a row with this event's id |
+| `KafkaEventConfig` | Only exists in this mode: creates the topics (`claim-events`, 3 partitions, and `claim-events.DLT`), enables scheduling, and sets what the consumer does with a message it cannot record |
+
+**At least once, made safe by an id.** The relay deletes a row only after Kafka has acknowledged it, so if the service stops in
+between, the event is sent again. Every event therefore has a stable id (`ClaimEvent.id()`: a name-based UUID of what happened,
+to which claim, who did it and when; computed rather than stored, so the record and the wire format are unchanged). The
+audit row stores it in `claim_history.event_id`, which is **unique**, and the listener skips an event whose id it has seen.
+The audit row and the notifications are written in one transaction, so a recorded event is never half done.
+
+| Situation | What happens |
+|---|---|
+| The broker is down or unresponsive | Claim changes still succeed: the publisher only writes the outbox. The rows stay put, the relay logs a warning and tries again, and the audit rows and notifications appear when the broker is back. Nothing is lost and nothing is delayed beyond the outage |
+| The service stops after Kafka acknowledged a send but before the row was deleted | The event is sent again on restart; the listener recognises the id and ignores the duplicate |
+| The claim's transaction rolls back | Its outbox row rolls back with it: no event exists |
+| A message is not a readable claim event | Not retried (retrying cannot help); parked at once on `claim-events.DLT` |
+| An event cannot be recorded (a database error, say) | Retried 3 times, 1 second apart, then parked on `claim-events.DLT` so the consumer moves on and nothing is silently dropped. The topic is for people to inspect; nothing replays it automatically |
+
+**What changes for the user.** In `local` mode the audit trail and the notifications are written with the claim. In `kafka`
+mode they follow it by the relay's delay plus the time to read the message: the claim row itself is current at once, but the
+timeline on the claim page, the notification badge and the new-claim alerts to claims staff can lag by a moment. That is eventual
+consistency, the price of decoupling, and it is why `local` stays the default.
+
+**What is not done.** One relay instance is assumed (two would not lose events but could send some twice, which the listener
+tolerates). The broker in `../docker-compose.yml` is one node with replication factor 1, plaintext and no volume; a real
+deployment would need a cluster, TLS and SASL, retention settings and a way to replay the dead-letter topic. Two events of the
+same type by the same actor on the same claim in the same nanosecond would share an id; nothing in the lifecycle can do that.
 
 ## 8. Data architecture
 
-Six tables in three databases (auth: `USERS`; claim: `CLAIMS`, `CLAIM_HISTORY`, `NOTIFICATIONS`; assessment:
-`CLAIM_ASSESSMENTS`, `CLAIM_NOTES`). Solid lines are real foreign keys inside one database; dashed lines are *logical*
+Seven tables in three databases (auth: `USERS`; claim: `CLAIMS`, `CLAIM_HISTORY`, `NOTIFICATIONS`, `CLAIM_EVENT_OUTBOX`;
+assessment: `CLAIM_ASSESSMENTS`, `CLAIM_NOTES`). Solid lines are real foreign keys inside one database; dashed lines are *logical*
 references across services, enforced by the application and not by the database. Only the key columns are drawn.
 
 ```mermaid
@@ -300,6 +392,13 @@ erDiagram
         varchar from_status
         varchar to_status
         bigint performed_by "logical ref to USERS"
+        varchar event_id UK "which event produced the row, null for seeded rows"
+    }
+    CLAIM_EVENT_OUTBOX {
+        bigint id PK
+        bigint claim_id FK
+        varchar event_id "ClaimEvent.id()"
+        varchar payload "the event as JSON"
     }
     NOTIFICATIONS {
         bigint id PK
@@ -324,6 +423,7 @@ erDiagram
     }
     CLAIMS ||--o{ CLAIM_HISTORY : "audit trail"
     CLAIMS ||--o{ NOTIFICATIONS : "raised for"
+    CLAIMS ||--o{ CLAIM_EVENT_OUTBOX : "events waiting for Kafka"
     USERS ||..o{ CLAIMS : "files or holds"
     CLAIMS ||..o| CLAIM_ASSESSMENTS : "assessed once"
     CLAIMS ||..o{ CLAIM_NOTES : "reviewed in"
@@ -344,6 +444,10 @@ erDiagram
   history by `(claim_id, created_at)` and by `(performed_by_role, performed_by)` (who has acted as claims staff);
   notifications by `(recipient_id, is_read, created_at)`.
 * `claim_history` is insert-only (the audit trail). `claim_assessments` is unique per claim and also uses a version column.
+* `claim_history.event_id` is **unique**, and null for the seeded rows (a unique column allows any number of nulls). It is what makes a Kafka redelivery harmless
+  (section 7). `claim_event_outbox` is the queue between a claim change and Kafka; it is written only in `kafka` mode, is
+  normally empty (rows are deleted once Kafka acknowledges them) and is not part of the seed. Both were added to `V1` in place,
+  not as a `V3`, because `V1` is the schema and `FLYWAY_TARGET=1` ("schema only") has to give a working empty platform.
 * Claimant name/email on a claim and staff member name on an assessment are **snapshots taken from the token**, because
   neither service has a users table. This is why the UI shows "Staff #2" for an assignee rather than a name; there is no
   staff directory to look one up in.
@@ -514,6 +618,7 @@ new-claim form's amount prefix follows the chosen market, and the form never sen
 | Backend web | MockMvc | Controllers: validation, status codes, error shape |
 | Backend security | MockMvc + real filter chain | Role matrix per endpoint, 401 vs 403, tampered/expired tokens |
 | Backend integration | `@SpringBootTest` on H2 + Flyway | Full lifecycle, search, repositories, seed-data invariants (private H2 URL so contexts don't share data); assessment-service runs against a stub claim-service |
+| Backend Kafka | JUnit 5, Mockito, `spring-kafka-test` | The publisher, the relay (order, a rejected send, a timeout, an empty outbox), the listener, the handler and its duplicate rule, `ClaimEvent.id()` and its JSON; and on a **real broker** (Kafka 3.9, KRaft, started inside the test JVM, so no Docker or install): the whole lifecycle recorded from the topic in order, an event delivered twice recorded once, an unreadable message and an unrecordable event parked on the dead-letter topic, a rolled-back claim change leaving the outbox empty, and the publisher refusing to run outside a transaction. A separate test pins the default: with no configuration the local publisher is the only one and no Kafka bean exists |
 | Front end | Vitest + jsdom (`ng test`) | Guards, interceptors, stores, API clients, route table, auth and claimant pages, pure utilities |
 
 Ordinary backend tests pin `spring.flyway.target=1` so they start from an empty schema; seed tests opt back in. Tests that
@@ -535,9 +640,17 @@ three forms whose submit never fired (section 14), but that walkthrough script i
 | Claim-service call first, local write last | Never record a decision the claim did not accept | A lost local write is repaired lazily, not immediately |
 | Logical cross-service ids, no shared DB | Real service independence | No referential integrity across services; snapshots of names |
 | Claims staff can only self-assign | There is no staff directory to validate another id against | A manager cannot assign work to someone else |
-| Relative `/api` URLs + dev proxy | No CORS, no host names in the app | Production needs a reverse proxy doing the same routing |
+| Relative `/api` URLs + dev proxy | No CORS, no host names in the app | Anything but the dev server needs a reverse proxy doing the same routing (in Docker, nginx does) |
 | Dashboards computed live | Always consistent with claims | Each refresh costs aggregate queries; fine at this scale |
 | `LocalClaimEventPublisher` (CLAUDE.md says `LocalEventPublisher`) | Name chosen by the project owner | None |
+| Kafka is **opt-in** (`app.events.publisher=kafka`); `local` stays the default | The brief ruled Kafka out and it was later asked for as an option. With the default, nothing needs a broker (the other tests, `../scripts/dev.mjs`, an IDE run) and the audit row stays atomic with the claim | Two modes to keep working, and Kafka mode is eventually consistent (section 7) |
+| A **transactional outbox**, not a send inside the request | A broker send cannot be atomic with a database transaction; the outbox makes "the claim changed" and "the event exists" one fact, and a broker outage cannot block or lose a claim change | An extra table, a relay, and up to the relay's delay before an event leaves |
+| An event id **computed from the event** (`ClaimEvent.id()`), not stored on it | At-least-once delivery needs a way to recognise a duplicate; computing it left `ClaimEvent`, and the two tests that compare events by value, untouched | Two identical events in the same nanosecond would count as one |
+| The listener and handler live **inside claim-service** | The topic decouples the write path from the audit and notification work without adding a fifth service, and another consumer can subscribe later | Claim-service is both producer and consumer of its own topic |
+| `claim_event_outbox` and `claim_history.event_id` went into **`V1`**, not a `V3` | `FLYWAY_TARGET=1` ("schema only") has to give a working empty platform | Same in-memory-only caveat as the other in-place edits |
+| **One `../backend/Dockerfile`** for the three services, picked with `--build-arg SERVICE` | The three builds differ only in the module name, so a single file cannot drift from itself | A change only one service needs must be a build argument or a new file |
+| nginx names the services in **variables** with Docker's DNS (`resolver 127.0.0.11`) | nginx starts even if a service is not up yet (502 until it is) instead of refusing to start | A little less obvious than a plain `proxy_pass` |
+| Compose orders start-up by **health checks**, not just `depends_on` | A service started before its dependency fails its first requests | Slower to show "healthy" (a 40 s start period); readiness is the probe, so a service that is up but not ready is not counted |
 | Extra event `ADDITIONAL_INFO_RECEIVED`, extra notification endpoints, `GET …/notes` | The UI needs them and the brief did not list them | CLAUDE.md's endpoint list is now incomplete |
 | **JDK 27**, not 21 | Chosen by the project owner; it is the only JDK installed | Differs from the brief; not verified on 21 |
 | **Angular 22**, not 19 | That is what the project was scaffolded with | Differs from the brief |
@@ -555,7 +668,7 @@ three forms whose submit never fired (section 14), but that walkthrough script i
 | The prompt dialog's **Cancel closes with `undefined`** (`[mat-dialog-close]="undefined"`) | A bare `mat-dialog-close` attribute closes with `''`, which `promptForText` could not tell from "confirmed with nothing typed": Cancel on an optional prompt went on to approve (or settle) the claim | Any new dialog button that means "no" must close with `undefined` |
 | **Readiness depends on claim-service, liveness does not** | Without claim-service, assessment-service can do nothing useful and should be taken out of rotation, but restarting it would not help | A probe on `/actuator/health` (which includes readiness) sees assessment-service go `DOWN` with claim-service, so use the liveness probe for restarts |
 | A **request id** in a filter, the log pattern and the call to claim-service, not a tracing system | One id on every log line of one staff action is enough to follow it through two services at this size, with no new infrastructure | Plain text logs only: no timings, no tree of calls |
-| The one-command start is a **Node script** (`scripts/dev.mjs`) | Docker is ruled out, Node is already needed for the front end, and a script can wait on the health endpoints and stop everything on Ctrl+C | Run on Windows only; the macOS and Linux branches are untried |
+| The one-command start is a **Node script** (`../scripts/dev.mjs`) | Node is already needed for the front end, it needs no Docker (which was ruled out when it was written), and a script can wait on the health endpoints and stop everything on Ctrl+C | Run on Windows only; the macOS and Linux branches are untried. `docker compose up --build` is the other way to start everything |
 | `(submit)` + `preventDefault` on forms without a `FormGroup` | `(ngSubmit)` only fires from `NgForm`/`FormGroupDirective`; three forms had neither and silently did a native submit | Forms with a `FormGroup` still use `(ngSubmit)` |
 
 ## 15. Known gaps and next steps
@@ -574,14 +687,23 @@ three forms whose submit never fired (section 14), but that walkthrough script i
 * No staff directory: assignee shows as "Staff #n"; managers cannot assign to others. Claim-service also lacks one, so
   new-claim alerts go to the staff found in its claim history (`HistoryClaimsStaffDirectory`); an account that has never
   taken a claim is not alerted until it does (section 7).
-* `KafkaEventPublisher` and an outbox for atomic publishing.
+* **Kafka mode is a first version** (section 7). It assumes one relay instance; nothing replays the dead-letter topic; the broker
+  in `../docker-compose.yml` is one plaintext node with replication factor 1 and no volume; the audit trail and notifications lag a
+  claim change by about a second. A *frozen* broker was exercised live and a *killed* one was not (the relay's handling of a
+  failed send is unit-tested). Next steps would be a typed event contract (a schema registry, or at least a versioned JSON
+  schema), a way to replay the dead-letter topic, and a second consumer (a notification service, say) to show the decoupling
+  is worth having.
+* **The Docker files have never been built or run**: there was no Docker on the machine they were written on. What was checked
+  is listed in the README ("In Docker"): the compose file by script, the Dockerfile's build commands by hand, and the packaged
+  jars in `kafka` mode against a real broker. Not exercised: `docker build`, nginx running the configuration, the container
+  health checks, the Kafka image's settings. CI does not build the images.
 * Production hardening: refresh tokens, asymmetric JWT, rate limiting, disabling the H2 console and Swagger UI, a real
   database (the Flyway scripts and the claim-number query, `NEXT VALUE FOR claim_number_seq`, were written for and only
-  run on H2, so a move would need them reviewed), a reverse proxy.
+  run on H2, so a move would need them reviewed), TLS in front of nginx (the container's nginx only forwards).
 * A component spec for the my-assigned-claims page, and a committed end-to-end suite (the checks that were run live are not in the repository).
 * One flaky backend test, `StaffWorkflowIntegrationTest.aStaffMemberTakesAClaimAsksForInformationAndApprovesIt`: it compares a
   JWT with one minted a moment later, which differ when the clock ticks over a second between them (a test defect, not a
   service defect; details in the README). Not fixed.
 * Initial bundle is 501.25 kB, 1.25 kB over the 500 kB *warning* budget (the error budget is 1 MB; it transfers 126.5 kB).
-* **CI is written but has not run** (`.github/workflows/ci.yml`; it needs a JDK 27 on the runner), and the start script has been
+* **CI is written but has not run** (`../.github/workflows/ci.yml`; it needs a JDK 27 on the runner), and the start script has been
   run on Windows only. There are no metrics or traces: health endpoints and a request id are the whole of the operating story.
